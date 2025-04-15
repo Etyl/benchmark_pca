@@ -15,18 +15,17 @@ with safe_import_context() as import_ctx:
 class Solver(BaseSolver):
 
     # Name to select the solver in the CLI and to display the results.
-    name = 'GD'
+    name = 'SklearnIncrementalPCA'
 
     # List of parameters for the solver. The benchmark will consider
     # the cross product for each key in the dictionary.
     # All parameters 'p' defined here are available as 'self.p'.
     parameters = {
-        'scale_step': [1, 1.99],
     }
 
     # List of packages needed to run the solver. See the corresponding
     # section in objective.py
-    requirements = []
+    requirements = ["numpy"]
 
     def set_objective(self, X, y):
         # Define the information received by each solver from the objective.
