@@ -1,6 +1,5 @@
 from benchopt import BaseDataset, safe_import_context
-from env_vars import DATA_CACHE_DIR
-from joblib import Memory
+from benchopt.benchmark import get_running_benchmark
 
 with safe_import_context() as import_ctx:
     import numpy as np
@@ -16,8 +15,6 @@ FILES = {
     "train_images": "train-images-idx3-ubyte.gz",
     "test_images": "t10k-images-idx3-ubyte.gz"
 }
-
-memory = Memory(DATA_CACHE_DIR)
 
 def download_mnist_in_memory():
     """Download MNIST dataset files into memory (no disk writing)."""
@@ -39,7 +36,6 @@ def extract_images_from_memory(mnist_files, filename):
         data = np.frombuffer(f.read(), dtype=np.uint8)
         return data.reshape(num_images, rows * cols).astype('float32') / 255.0
 
-@memory.cache
 def get_mnist():
     """Download and prepare the MNIST dataset in memory."""
     # Download MNIST files into memory
@@ -64,5 +60,7 @@ class Dataset(BaseDataset):
     requirements = ["numpy", "gzip"]
 
     def get_data(self):
-        return dict(X=get_mnist())
+        benchmark = get_running_benchmark()
+        cached = benchmark.cache(get_mnist)
+        return dict(X=cached())
     

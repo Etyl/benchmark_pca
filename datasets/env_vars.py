@@ -1,1 +1,0 @@
-DATA_CACHE_DIR = "/scratch/clear/gilinca/cache/benchmark_distributed_pca/"

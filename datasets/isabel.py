@@ -1,7 +1,6 @@
 
 from benchopt import BaseDataset, safe_import_context
-from env_vars import DATA_CACHE_DIR
-from joblib import Memory
+from benchopt.benchmark import get_running_benchmark
 
 with safe_import_context() as import_ctx:
     import numpy as np
@@ -9,9 +8,6 @@ with safe_import_context() as import_ctx:
     import gzip
     from io import BytesIO
 
-memory = Memory(DATA_CACHE_DIR)
-
-@memory.cache
 def get_isabel_data():
     # Shape details
     num_frames = 48
@@ -55,5 +51,7 @@ class Dataset(BaseDataset):
     requirements = ["numpy", "gzip"]
 
     def get_data(self):
-        return dict(X=get_isabel_data())
+        benchmark = get_running_benchmark()
+        cached = benchmark.cache(get_isabel_data)
+        return dict(X=cached())
     
