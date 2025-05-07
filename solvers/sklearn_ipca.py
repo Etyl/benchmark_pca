@@ -26,15 +26,16 @@ class Solver(BaseSolver):
         self.X, self.n_components = X, n_components
 
     def pre_run_hook(self, callback):
-        self.ipca_transform = IncrementalPCA(n_components=self.n_components, batch_size=self.batch_size)
+        self.ipca_transform = IncrementalPCA(n_components=self.n_components, 
+                                             batch_size=self.batch_size, 
+                                             whiten=True) # normalize eigenvectors
 
     def run(self, callback):
         for batch_slice in gen_batches(self.X.shape[0], self.batch_size):
             self.ipca_transform.partial_fit(self.X[batch_slice])
-            self.pca = self.ipca_transform.components_
-            self.var_ratio = self.ipca_transform.explained_variance_ratio_
+            self.components = self.ipca_transform.components_
             callback()
 
     def get_result(self):
-        return dict(pca=self.pca, var_ratio=self.var_ratio)
+        return dict(components=self.components)
 

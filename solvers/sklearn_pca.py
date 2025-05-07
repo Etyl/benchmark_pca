@@ -4,8 +4,6 @@ from benchopt import BaseSolver, safe_import_context
 with safe_import_context() as import_ctx:
     from sklearn.decomposition import PCA
 
-# source : 
-
 class Solver(BaseSolver):
 
     name = 'Sklearn-PCA'
@@ -22,13 +20,13 @@ class Solver(BaseSolver):
         self.X = X
         self.n_components = n_components
 
-    ## Here we ignore n_iter because we just want runtime of the algorithm (no optim)
+    # Here we ignore n_iter because we just want runtime of the algorithm (no optim)
     def run(self, n_iter):
         pca_transform = PCA(n_components = self.n_components, 
-                              svd_solver = self.svd_solver)
+                              svd_solver = self.svd_solver,
+                              whiten=True) # normalize eigenvectors
         pca_transform.fit(self.X)
-        self.pca = pca_transform.components_
-        self.var_ratio = pca_transform.explained_variance_
+        self.components = pca_transform.components_
 
     def get_result(self):
-        return dict(pca=self.pca, var_ratio=self.var_ratio)
+        return dict(components=self.components)
