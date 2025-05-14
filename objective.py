@@ -2,7 +2,6 @@ from benchopt import BaseObjective, safe_import_context
 
 with safe_import_context() as import_ctx:
     import numpy as np
-    import time
 
 class Objective(BaseObjective):
 
@@ -23,14 +22,9 @@ class Objective(BaseObjective):
         self.X_norm = np.linalg.norm(X, 'fro')
 
     def evaluate_result(self, components):
-        print("begin ortho : ", time.perf_counter())
-        
-        orthogonality_gap = np.max(np.abs(components @ components.T - np.eye(components.shape[0])).flatten())
-        print("end ortho - begin proj", time.perf_counter())
-        energy_gap = np.linalg.norm(self.X - self.X@(components.T@components), 'fro')
-        energy_gap = energy_gap / self.X_norm
-        print("end proj",  time.perf_counter())
-        return dict(value=energy_gap, orthogonality_gap=orthogonality_gap)  
+        ortho_diagnostic = np.max(np.abs(components @ components.T - np.eye(components.shape[0])).flatten())
+        unexplained_var = 1 - np.linalg.norm(self.X @ components.T) / self.X_norm
+        return dict(value=unexplained_var, ortho_diagnostic=ortho_diagnostic)  
 
     def get_one_result(self):
         return dict(components=np.zeros(self.n_components, self.X.shape[1]))

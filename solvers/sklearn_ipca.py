@@ -2,11 +2,10 @@ from benchopt import BaseSolver, safe_import_context
 from benchopt.stopping_criterion import NoCriterion
 
 with safe_import_context() as import_ctx:
-    import numpy as np
     from sklearn.decomposition import IncrementalPCA
     from sklearn.utils import gen_batches
 
-
+# https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.IncrementalPCA.html
 
 class Solver(BaseSolver):
     name = 'Sklearn-IPCA'

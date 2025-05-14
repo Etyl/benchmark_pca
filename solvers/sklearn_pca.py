@@ -4,6 +4,8 @@ from benchopt import BaseSolver, safe_import_context
 with safe_import_context() as import_ctx:
     from sklearn.decomposition import PCA
 
+# https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.PCA.html#sklearn.decomposition.PCA
+
 class Solver(BaseSolver):
 
     name = 'Sklearn-PCA'
