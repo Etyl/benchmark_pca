@@ -31,20 +31,18 @@ class Solver(BaseSolver):
         n, d = X.shape
         k = self.n_components
 
-        W = generator.normal(0, 1, (k, d))
-        Q, _ = np.linalg.qr(W.T, mode="reduced")
-        W = Q.T
+        W = generator.normal(0, 1, (d, k)) # Not sure it is uniform, maybe change even if it is from the paper 
+        W, _ = np.linalg.qr(W, mode="reduced")
         b = np.full(k, self.b0)
 
         indices = generator.integers(0, self.X.shape[0], (n_iter, self.batch_size)) #TODO: Add online version
 
         for iter in range(n_iter):
-            x = self.X[indices[iter]] # minibatch
-            G = ((W @ x.T) @ x) / self.batch_size
-            b = np.sqrt(b**2 + np.linalg.norm(G, axis=1))
-            W = W + G/b[:, None] 
-            Q, _ = np.linalg.qr(W.T, mode="reduced")
-            W = Q.T
+            Xb = self.X[indices[iter]].T # minibatch of dim (d, self.batch_size)
+            G = (1 / self.batch_size) * Xb @ Xb.T @ W
+            b = np.sqrt(b**2 + np.linalg.norm(G, axis=0))
+            W = W + G / b[None, :] 
+            W, _ = np.linalg.qr(W, mode="reduced")
         
         self.components = W
 

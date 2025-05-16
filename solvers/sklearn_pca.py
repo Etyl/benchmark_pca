@@ -28,7 +28,7 @@ class Solver(BaseSolver):
                               svd_solver = self.svd_solver,
                               whiten=True) # normalize eigenvectors
         pca_transform.fit(self.X)
-        self.components = pca_transform.components_
+        self.components = pca_transform.components_.T
 
     def get_result(self):
         return dict(components=self.components)

@@ -32,15 +32,14 @@ class Solver(BaseSolver):
         k = self.n_components
 
         ortho_generator = scipy.stats.ortho_group(max(k, d), generator)
-        W = ortho_generator.rvs()[:k, :d]
+        W = ortho_generator.rvs()[:d, :k]
 
-        indices = generator.integers(0, self.X.shape[0], n_iter) #TODO: Add online version
+        indices = generator.integers(0, n, n_iter) #TODO: Add online version
 
         for iter in range(n_iter):
             x = self.X[indices[iter]]
-            W = W + self.step_size * (W @ x)[:, None] * x
-            Q, _ = np.linalg.qr(W.T, mode="reduced") #TODO: Add "stabilized" SVD based orthogonalization
-            W = Q.T
+            W = W + self.step_size * x[:, None] @ (x[None, :] @ W)
+            W, _ = np.linalg.qr(W, mode="reduced") #TODO: Add "stabilized" SVD based orthogonalization
     
         self.components = W
 

@@ -32,7 +32,7 @@ class Solver(BaseSolver):
     def run(self, callback):
         for batch_slice in gen_batches(self.X.shape[0], self.batch_size):
             self.ipca_transform.partial_fit(self.X[batch_slice])
-            self.components = self.ipca_transform.components_
+            self.components = self.ipca_transform.components_.T
             callback()
 
     def get_result(self):

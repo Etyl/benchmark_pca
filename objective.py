@@ -22,12 +22,12 @@ class Objective(BaseObjective):
         self.X_norm = np.linalg.norm(X, 'fro')
 
     def evaluate_result(self, components):
-        ortho_diagnostic = np.max(np.abs(components @ components.T - np.eye(components.shape[0])).flatten())
-        unexplained_var = 1 - np.linalg.norm(self.X @ components.T) / self.X_norm
+        ortho_diagnostic = np.max(np.abs(components.T @ components - np.eye(self.n_components)).flatten())
+        unexplained_var = 1 - np.linalg.norm(self.X @ components, "fro") / self.X_norm
         return dict(value=unexplained_var, ortho_diagnostic=ortho_diagnostic)  
 
     def get_one_result(self):
-        return dict(components=np.zeros(self.n_components, self.X.shape[1]))
+        return dict(components=np.zeros(self.X.shape[1], self.n_components))
 
     def get_objective(self):
         return dict(
