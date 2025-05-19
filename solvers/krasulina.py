@@ -29,8 +29,7 @@ class Solver(BaseSolver):
 
     def run(self, n_iter):
         generator = np.random.default_rng(self.random_seed)
-        X = self.X 
-        n, d = X.shape
+        n, d = self.X.shape
         k = self.n_components
 
         ortho_generator = scipy.stats.ortho_group(max(k, d), generator)

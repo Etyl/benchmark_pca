@@ -27,15 +27,14 @@ class Solver(BaseSolver):
 
     def run(self, n_iter):
         generator = np.random.default_rng(self.random_seed)
-        X = self.X 
-        n, d = X.shape
+        n, d = self.X.shape
         k = self.n_components
 
         W = generator.normal(0, 1, (d, k)) # Not sure it is uniform, maybe change even if it is from the paper 
         W, _ = np.linalg.qr(W, mode="reduced")
         b = np.full(k, self.b0)
 
-        indices = generator.integers(0, self.X.shape[0], (n_iter, self.batch_size)) #TODO: Add online version
+        indices = generator.integers(0, n, (n_iter, self.batch_size)) #TODO: Add online version
 
         for iter in range(n_iter):
             Xb = self.X[indices[iter]].T # minibatch of dim (d, self.batch_size)
