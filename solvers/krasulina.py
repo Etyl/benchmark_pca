@@ -16,6 +16,7 @@ class Solver(BaseSolver):
     parameters = {
         "step_size" : [1e-4, 1e-3, 1e-2, 1e-1],
         "random_seed" : [constants.RANDOM_SEED],
+        "batch_size" : [1, 10]
         }
 
     requirements = ["scipy"]
@@ -35,11 +36,12 @@ class Solver(BaseSolver):
         ortho_generator = scipy.stats.ortho_group(max(k, d), generator)
         W = ortho_generator.rvs()[:d, :k]
 
-        indices = generator.integers(0, n, n_iter) #TODO: Add online version
+        indices = generator.integers(0, n, (n_iter, self.batch_size)) #TODO: Add online version
 
         for iter in range(n_iter):
-            x = self.X[indices[iter]]
-            W = W + self.step_size * (W.T @ x)[None, :] * (x - W @ (W.T @ x))[:, None]
+            Xb = self.X[indices[iter]].T # minibatch of dim (d, self.batch_size)
+            wx = W.T @ Xb #micro optim to save kdb iterations
+            W = W + self.step_size * (wx) @ (Xb - W @ (wx)) 
             W, _ = np.linalg.qr(W, mode="reduced") #TODO: Add "stabilized" SVD based orthogonalization
             
         self.components = W 
