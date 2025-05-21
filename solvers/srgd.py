@@ -40,8 +40,7 @@ class Solver(BaseSolver):
         for iter in range(n_iter):
             x = self.X[indices[iter]]
             G = - x[:, None] @ (x[None, :] @ W)
-            G = stiefel.tangent_proj(G, W)
-            W = stiefel.retraction(W, - (1/self.step_size) * G, mode=self.retraction)
+            W = stiefel.rgd_step(W, G, self.step_size, mode=self.retraction)
             
         self.components = W
 
