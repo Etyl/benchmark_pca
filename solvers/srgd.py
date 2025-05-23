@@ -14,7 +14,7 @@ class Solver(BaseSolver):
     parameters = {
         "step_size" : [1e-4, 1e-3, 1e-2, 1e-1],
         "random_seed" : [constants.RANDOM_SEED],
-        "retraction" : ["QR", "cayley", "polar", "exp"]  #maybe add exact geodesic update, which is not particularly expensive (cf paper above)
+        "retraction" : ["QR", "cayley", "polar"] # exp is too long to run
         }
 
     requirements = ["scipy"]
