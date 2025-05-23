@@ -13,13 +13,13 @@ class Dataset(BaseDataset):
 
     name = "a9a"
 
-    parameters = {
-    }
+    parameters = {}
 
     requirements = ["scikit-learn"]
 
-
     def get_data(self):
         data_home = get_data_path()
-        return dict(X=get_a9a(data_home))
+        X = fetch_openml(name="a9a", data_home=data_home)
+        X = X.data.toarray()
+        return dict(X=X)
     

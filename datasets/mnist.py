@@ -2,9 +2,9 @@ import os
 import urllib.request
 import gzip
 
-from benchopt import BaseDataset, safe_import_context
+from benchopt import safe_import_context
 from benchopt.config import get_data_path
-from benchmark_utils.data import is_data_valid, mark_data_status
+from benchmark_utils.data import DiskDataset
 
 with safe_import_context() as import_ctx:
     import numpy as np
@@ -42,34 +42,32 @@ def get_mnist_on_disk(base_path):
         all_images = np.vstack([train_images, test_images])
         return all_images
 
-class Dataset(BaseDataset):
+class Dataset(DiskDataset):
 
     name = "mnist"
     parameters = {}
     requirements = ["numpy", "gzip"]
 
-    def get_data(self):
-        base_path = get_data_path()
-        data_dir = os.path.join(base_path, "mnist")
-        data_path = os.path.join(data_dir, "data.npy")
-        status_path = os.path.join(data_dir, "status.json")
+    def download(self, raw_data_dir):
+        for filename in FILES.values():
+            out_path = os.path.join(raw_data_dir, filename)
+            urllib.request.urlretrieve(BASE_URL + filename, out_path)
 
-        if os.path.exists(data_path) and is_data_valid(status_path):
-            print("Using existing preprocessed MNIST data.")
-            X = np.load(data_path).astype(np.float32)
-
-        else: 
-            print("Processing MNIST data from raw files...")
-
-            # Mark as incomplete at the beginning
-            mark_data_status(status_path, "incomplete")
-
-            X = get_mnist_on_disk(base_path)
-
-            os.makedirs(data_dir, exist_ok=True)
-            np.save(data_path, X)
-
-            # Mark as complete at the end
-            mark_data_status(status_path, "complete")
-
-        return dict(X=X)
+    def extract_images_from_file(self, filepath):
+        with gzip.open(filepath, 'rb') as f:
+            _ = int.from_bytes(f.read(4), 'big')  # Magic number
+            num_images = int.from_bytes(f.read(4), 'big')
+            rows = int.from_bytes(f.read(4), 'big')
+            cols = int.from_bytes(f.read(4), 'big')
+            data = np.frombuffer(f.read(), dtype=np.uint8)
+            return data.reshape(num_images, rows * cols).astype('float32') / 255.0
+    
+    def preprocess_and_save(self, raw_data_dir, data_dir):
+        train_images = self.extract_images_from_file(os.path.join(raw_data_dir, FILES["train_images"]))
+        test_images = self.extract_images_from_file(os.path.join(raw_data_dir, FILES["test_images"]))
+        all_images = np.vstack([train_images, test_images])
+        np.save(os.path.join(data_dir, "data.npy"), all_images)
+    
+    def load(self, data_dir):
+         X = np.load(os.path.join(data_dir, "data.npy"))
+         return X

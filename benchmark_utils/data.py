@@ -30,8 +30,10 @@ def mark_data_status(status_path, status):
 class DiskDataset(BaseDataset):
     
     def clean_folder(self, data_dir):
-        shutil.rmtree(data_dir)
+        if os.path.exists(data_dir):
+            shutil.rmtree(data_dir)
         os.makedirs(data_dir)
+        os.makedirs(os.path.join(data_dir, "raw"))
     
     def get_data(self):
         base_path = get_data_path()
@@ -44,7 +46,7 @@ class DiskDataset(BaseDataset):
         if status == "none":
             print(f"Read data status : 'none'")
             print(f"Cleaning (rm + mkdir) of current data dir {data_dir}")
-            self.clean_folder()
+            self.clean_folder(data_dir)
             print(f"Downloading dataset {self.name}")
             self.download(raw_data_dir)
             mark_data_status(status_path, "raw")
@@ -53,7 +55,7 @@ class DiskDataset(BaseDataset):
         if status == "raw":
             print(f"Reading data status : 'raw'")
             print(f"Preprocessing and saving {self.name} data")
-            self.preprocess(raw_data_dir, data_dir)
+            self.preprocess_and_save(raw_data_dir, data_dir)
             mark_data_status(status_path, "preprocessed")
             status = "preprocessed"
 
@@ -67,8 +69,8 @@ class DiskDataset(BaseDataset):
     def download(self, raw_data_dir):
         raise NotImplementedError("Subclass of DiskDataset should implement download method")
 
-    def preprocess(self, raw_data_dir, data_dir):
-        raise NotImplementedError("Subclass of DiskDataset should implement preprocess method")
+    def preprocess_and_save(self, raw_data_dir, data_dir):
+        raise NotImplementedError("Subclass of DiskDataset should implement preprocess_and_save method")
     
     def load(self, data_dir):
         raise NotImplementedError("Subclass of DiskDataset should implement load method")
