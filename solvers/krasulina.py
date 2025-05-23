@@ -41,7 +41,7 @@ class Solver(BaseSolver):
         for iter in range(n_iter):
             Xb = self.X[indices[iter]].T # minibatch of dim (d, self.batch_size)
             wx = W.T @ Xb #micro optim to save kdb iterations
-            W = W + self.step_size * (wx) @ (Xb - W @ (wx)) 
+            W = W + self.step_size * (Xb - W @ (wx)) @ wx.T 
             W, _ = np.linalg.qr(W, mode="reduced") #TODO: Add "stabilized" SVD based orthogonalization
             
         self.components = W 
