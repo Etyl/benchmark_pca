@@ -32,8 +32,7 @@ class Solver(BaseSolver):
         n, d = X.shape
         k = self.n_components
 
-        ortho_generator = scipy.stats.ortho_group(max(k, d), generator)
-        W = ortho_generator.rvs()[:d, :k]
+        W = stiefel.uniform(d, k, self.random_seed)
 
         indices = generator.integers(0, n, n_iter) #TODO: Add online version
 

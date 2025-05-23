@@ -2,7 +2,7 @@ from benchopt import BaseSolver, safe_import_context
 
 with safe_import_context() as import_ctx:
     import numpy as np 
-    from benchmark_utils import constants
+    from benchmark_utils import constants, stiefel
 
 # Pseudo-code from https://arxiv.org/pdf/1905.12115
 
@@ -30,8 +30,7 @@ class Solver(BaseSolver):
         n, d = self.X.shape
         k = self.n_components
 
-        W = generator.normal(0, 1, (d, k)) # Not sure it is uniform, maybe change even if it is from the paper 
-        W, _ = np.linalg.qr(W, mode="reduced")
+        W = stiefel.uniform(d, k, self.random_seed)
         b = np.full(k, self.b0)
 
         indices = generator.integers(0, n, (n_iter, self.batch_size)) #TODO: Add online version

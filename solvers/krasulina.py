@@ -2,8 +2,7 @@ from benchopt import BaseSolver, safe_import_context
 
 with safe_import_context() as import_ctx:
     import numpy as np 
-    import scipy.stats 
-    from benchmark_utils import constants
+    from benchmark_utils import constants, stiefel
 
 # Pseudo-code from https://proceedings.neurips.cc/paper_files/paper/2019/file/38faae069a1371784081ea9ad9b279d0-Paper.pdf
 # in which convention X.shape = (k,d)
@@ -33,8 +32,7 @@ class Solver(BaseSolver):
         n, d = self.X.shape
         k = self.n_components
 
-        ortho_generator = scipy.stats.ortho_group(max(k, d), generator)
-        W = ortho_generator.rvs()[:d, :k]
+        W = stiefel.uniform(d, k, self.random_seed)
 
         indices = generator.integers(0, n, (n_iter, self.batch_size)) #TODO: Add online version
 

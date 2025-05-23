@@ -1,9 +1,9 @@
+from benchmark_utils import linalg
 from benchopt import BaseSolver, safe_import_context
 
 with safe_import_context() as import_ctx:
     import numpy as np 
-    import scipy.stats 
-    from benchmark_utils import constants, utils
+    from benchmark_utils import constants, stiefel
 
 # Pseudo-code from https://proceedings.mlr.press/v48/shamira16.pdf
 class Solver(BaseSolver):
@@ -32,8 +32,8 @@ class Solver(BaseSolver):
 
         X = self.X.T
 
-        ortho_generator = scipy.stats.ortho_group(max(k, d), generator)
-        W_tilde = ortho_generator.rvs()[:d, :k]
+        W_tilde = stiefel.uniform(d, k, self.random_seed)
+
 
         indices = generator.integers(0, n, (n_iter, self.epoch_size)) #TODO: Add online version
 
@@ -45,7 +45,7 @@ class Solver(BaseSolver):
                 B = Vh.T@U.T 
                 x = self.X[indices[i,j]]
                 W_prime = W + self.step_size*(x[:, None] @ (x[None, :] @ W - x[None, :] @ (W_tilde @ B)) + U_tilde @ B)
-                W = W_prime @ utils.inv_squared_root(W_prime.T@W_prime)
+                W = W_prime @ linalg.inv_squared_root(W_prime.T@W_prime)
             W_tilde = W 
 
         self.components = W_tilde
