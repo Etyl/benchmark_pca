@@ -8,7 +8,7 @@ with safe_import_context() as import_ctx:
 # Pseudo-code from https://proceedings.mlr.press/v48/shamira16.pdf
 class Solver(BaseSolver):
 
-    name = 'VR-PCA'
+    name = 'vrpca'
 
     parameters = {
         "step_size" : [1e-4, 1e-3, 1e-2],

@@ -9,7 +9,7 @@ with safe_import_context() as import_ctx:
 
 class Solver(BaseSolver):
 
-    name = 'SRGD'
+    name = 'srgd'
 
     parameters = {
         "step_size" : [1e-4, 1e-3, 1e-2, 1e-1],

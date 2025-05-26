@@ -18,7 +18,7 @@ def generate_gaussian(n_samples, n_features, rank, random_seed):
 
 class Dataset(DiskDataset):
     # data which is not low-rank, but which is really close to
-    name = "k-Gaussian"
+    name = "kgaussian"
 
     parameters = {
         'n, d': [

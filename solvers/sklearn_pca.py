@@ -8,7 +8,7 @@ with safe_import_context() as import_ctx:
 
 class Solver(BaseSolver):
 
-    name = 'Sklearn-PCA'
+    name = 'sklearn_pca'
 
     parameters = {
         'svd_solver' : ["full", "covariance_eigh", "arpack", "randomized"]

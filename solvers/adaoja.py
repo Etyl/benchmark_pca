@@ -8,7 +8,7 @@ with safe_import_context() as import_ctx:
 
 class Solver(BaseSolver):
 
-    name = 'AdaOja'
+    name = 'adaoja'
 
     parameters = {
         "random_seed" : [constants.RANDOM_SEED],

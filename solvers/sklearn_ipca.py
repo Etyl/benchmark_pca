@@ -8,7 +8,7 @@ with safe_import_context() as import_ctx:
 # https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.IncrementalPCA.html
 
 class Solver(BaseSolver):
-    name = 'Sklearn-IPCA'
+    name = 'sklearn_ipca'
 
     parameters = {
         "batch_size" : [1, 10, 50]

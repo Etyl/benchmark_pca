@@ -1,4 +1,4 @@
-from benchmark_utils import rbki_utils
+from benchmark_utils import rbki
 from benchopt import BaseSolver, safe_import_context
 
 with safe_import_context() as import_ctx:
@@ -10,7 +10,7 @@ with safe_import_context() as import_ctx:
 
 class Solver(BaseSolver):
 
-    name = 'RBKI'
+    name = 'rbki'
 
     parameters = {
         "random_seed" : [constants.RANDOM_SEED],
@@ -20,7 +20,7 @@ class Solver(BaseSolver):
 
     requirements = ["scipy"]
 
-    stopping_criterion = rbki_utils.RBKICriterion()
+    stopping_criterion = rbki.RBKICriterion()
 
     def set_objective(self, X, n_components):
         self.X = X
