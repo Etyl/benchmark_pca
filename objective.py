@@ -29,7 +29,7 @@ class Objective(BaseObjective):
         return dict(value=unexplained_var, ortho_diagnostic=ortho_diagnostic)  
 
     def get_one_result(self):
-        return dict(components=np.zeros(self.X.shape[1], self.n_components))
+        return dict(components=np.zeros((self.X.shape[1], self.n_components)))
 
     def get_objective(self):
         return dict(

@@ -2,7 +2,6 @@ from benchopt import BaseSolver, safe_import_context
 
 with safe_import_context() as import_ctx:
     import numpy as np 
-    import scipy.stats 
     from benchmark_utils import constants, stiefel
 
 # Pseudo-code from https://arxiv.org/pdf/1905.12115
