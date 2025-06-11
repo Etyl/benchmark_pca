@@ -37,7 +37,7 @@ class Solver(BaseSolver):
 
         for iter in range(n_iter):
             Xb = self.X[indices[iter]].T # minibatch of dim (d, self.batch_size)
-            G = (1 / self.batch_size) * Xb @ Xb.T @ W
+            G = (1 / self.batch_size) * Xb @ (Xb.T @ W)
             b = np.sqrt(b**2 + np.linalg.norm(G, axis=0))
             W = W + G / b[None, :] 
             W, _ = np.linalg.qr(W, mode="reduced")
