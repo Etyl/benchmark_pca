@@ -19,3 +19,6 @@ coverage.xml
 
 # Notebooks
 *.ipynb
+
+# Run scripts 
+scripts/
