@@ -51,10 +51,11 @@ class Dataset(DiskDataset):
             data[frame - 1] = frame_data.reshape(SHAPE_PER_FRAME)
 
         data.reshape(NUM_FRAMES, -1)
-        np.save(os.path.join(data_dir), "data.npy")
+        np.save(os.path.join(data_dir, "data.npy"), data)
 
     def load(self, data_dir):
          X = np.load(os.path.join(data_dir, "data.npy"))
+         X = X.reshape(NUM_FRAMES, -1)
          return X
 
     
