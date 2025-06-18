@@ -1,7 +1,8 @@
-from benchmark_utils import rbki
+from benchopt.stopping_criterion import SufficientProgressCriterion
 from benchopt import BaseSolver, safe_import_context
 
 with safe_import_context() as import_ctx:
+    from benchopt.utils import profile
     import numpy as np 
     from benchmark_utils import constants
 
@@ -14,21 +15,26 @@ class Solver(BaseSolver):
 
     parameters = {
         "random_seed" : [constants.RANDOM_SEED],
-        "max_runs": [10],
+        "max_iter": [6],
         "oversampling_ratio" : [1, 1.5, 2, 3]
         }
 
     requirements = ["scipy"]
 
-    stopping_criterion = rbki.RBKICriterion()
+    stopping_criterion = SufficientProgressCriterion(eps=constants.EPS, patience=constants.PATIENCE, strategy="callback")
+
+    def get_next(self, stop_val):
+        return stop_val + 1
 
     def set_objective(self, X, n_components):
         self.X = X
         self.n_components = n_components
 
-    def run(self, n_iter):
+    @profile
+    def run(self, callback):
         generator = np.random.default_rng(self.random_seed)
         n, d = self.X.shape
+        n_iter = self.n_iter
     
         k = self.n_components // n_iter  
 
@@ -52,7 +58,10 @@ class Solver(BaseSolver):
         Y = Y_t.copy()
         Z = Z_t.copy()
 
-        for _ in range(n_iter - 1):
+        U, _, _ = np.linalg.svd(Y.T, full_matrices=False, compute_uv=True)
+        self.components = (Z @ U)[:,:self.n_components]
+
+        while callback():
             Z_t = X @ Y_t 
             Z_t = Z_t - Z @ (Z.T @ Z_t)
             Z_t = Z_t - Z @ (Z.T @ Z_t)
@@ -61,8 +70,8 @@ class Solver(BaseSolver):
             Z = np.concatenate([Z, Z_t], axis=1)  #if too slow preallocate Z and Y at the beggining
             Y = np.concatenate([Y, Y_t], axis=1)
             
-        U, _, _ = np.linalg.svd(Y.T, full_matrices=False, compute_uv=True)
-        self.components = (Z @ U)[:,:self.n_components]
+            U, _, _ = np.linalg.svd(Y.T, full_matrices=False, compute_uv=True)
+            self.components = (Z @ U)[:,:self.n_components]
 
     def get_result(self):
         return dict(components=self.components)

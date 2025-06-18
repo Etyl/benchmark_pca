@@ -2,6 +2,7 @@ from benchopt import BaseSolver, safe_import_context
 
 with safe_import_context() as import_ctx:
     import numpy as np 
+    from benchopt.stopping_criterion import SufficientProgressCriterion
     from benchmark_utils import constants, stiefel
 
 # Pseudo-code from https://arxiv.org/pdf/1905.12115
@@ -18,28 +19,28 @@ class Solver(BaseSolver):
 
     requirements = ["scipy"]
 
-    sampling_strategy = "iteration"
-
+    stopping_criterion = SufficientProgressCriterion(eps=constants.EPS,
+                                                     patience=constants.PATIENCE,
+                                                     strategy="callback")
     def set_objective(self, X, n_components):
         self.X = X
         self.n_components = n_components
             
 
-    def run(self, n_iter):
+    def run(self, callback):
         generator = np.random.default_rng(self.random_seed)
         n, d = self.X.shape
         k = self.n_components
 
         W = stiefel.uniform(d, k, self.random_seed)
-
-        indices = generator.integers(0, n, (n_iter, self.batch_size)) #TODO: Add online version
-
-        for iter in range(n_iter):
-            Xb = self.X[indices[iter]].T 
-            W = W + self.step_size * Xb @ (Xb.T @ W)
-            W, _ = np.linalg.qr(W, mode="reduced") #TODO: Add "stabilized" SVD based orthogonalization
-    
         self.components = W
+
+        while callback():
+            indices = generator.integers(0, n, self.batch_size)
+            Xb = self.X[indices].T # minibatch of dim (d, self.batch_size)
+            W = W + self.step_size * Xb @ (Xb.T @ W) / self.batch_size
+            W, _ = np.linalg.qr(W, mode="reduced") #TODO: Add "stabilized" SVD based orthogonalization
+            self.components = W
 
     def get_result(self):
         return dict(components=self.components)
