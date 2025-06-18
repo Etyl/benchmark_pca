@@ -1,4 +1,4 @@
-from benchopt.stopping_criterion import SufficientProgressCriterion
+from benchopt.stopping_criterion import NoCriterion
 from benchopt import BaseSolver, safe_import_context
 
 with safe_import_context() as import_ctx:
@@ -15,13 +15,13 @@ class Solver(BaseSolver):
 
     parameters = {
         "random_seed" : [constants.RANDOM_SEED],
-        "max_iter": [6],
+        "q": [6],
         "oversampling_ratio" : [1, 1.5, 2, 3]
         }
 
     requirements = ["scipy"]
 
-    stopping_criterion = SufficientProgressCriterion(eps=constants.EPS, patience=constants.PATIENCE, strategy="callback")
+    stopping_criterion = NoCriterion(strategy="callback")
 
     def get_next(self, stop_val):
         return stop_val + 1
@@ -34,15 +34,12 @@ class Solver(BaseSolver):
     def run(self, callback):
         generator = np.random.default_rng(self.random_seed)
         n, d = self.X.shape
-        n_iter = self.n_iter
+        q = self.q
     
-        k = self.n_components // n_iter  
-
-        if k < 1:
-            raise ValueError(f"RBKI need n_components (={self.n_components}) to be >= to n_iter (={n_iter})")
+        k = self.n_components // q  
         
-        if self.n_components % n_iter != 0:
-            print(f"n_iter ({k}) is not a factor of n_components ({n_iter}), truncation will be performed")
+        if self.n_components % q != 0:
+            print(f"n_iter ({q}) is not a factor of n_components ({self.n_components}), truncation will be performed")
             k = k + 1
 
         k = int(self.oversampling_ratio * k)
@@ -60,8 +57,9 @@ class Solver(BaseSolver):
 
         U, _, _ = np.linalg.svd(Y.T, full_matrices=False, compute_uv=True)
         self.components = (Z @ U)[:,:self.n_components]
+        callback()
 
-        while callback():
+        for i in range(self.q - 1):
             Z_t = X @ Y_t 
             Z_t = Z_t - Z @ (Z.T @ Z_t)
             Z_t = Z_t - Z @ (Z.T @ Z_t)
@@ -72,6 +70,7 @@ class Solver(BaseSolver):
             
             U, _, _ = np.linalg.svd(Y.T, full_matrices=False, compute_uv=True)
             self.components = (Z @ U)[:,:self.n_components]
+            callback()
 
     def get_result(self):
         return dict(components=self.components)

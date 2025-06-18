@@ -13,7 +13,7 @@ class Solver(BaseSolver):
 
     parameters = {
         "random_seed" : [constants.RANDOM_SEED],
-        "b0" : [1e-5],
+        "b0" : [1e-5, 1e-3, 1e-1],
         "batch_size" : [1, 10, 50]
         }
 

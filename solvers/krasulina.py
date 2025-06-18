@@ -14,7 +14,7 @@ class Solver(BaseSolver):
     name = 'krasulina'
 
     parameters = {
-        "step_size" : [1e-4, 1e-3, 1e-2, 1e-1],
+        "step_size" : [1e-3, 1e-1],
         "random_seed" : [constants.RANDOM_SEED],
         "batch_size" : [1, 10]
         }

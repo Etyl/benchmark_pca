@@ -12,7 +12,7 @@ class Solver(BaseSolver):
     name = 'vrpca'
 
     parameters = {
-        "step_size" : [1e-4, 1e-3, 1e-2],
+        "step_size" : [1e-3, 1e-2, 1e-1, 1],
         "batch_size": [1, 10],
         "epoch_size" : [10, 100, 1000], # still way less than indicated in paper ~ n
         "random_seed" : [constants.RANDOM_SEED]
