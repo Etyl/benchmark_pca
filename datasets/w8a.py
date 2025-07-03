@@ -6,11 +6,10 @@ with safe_import_context() as import_ctx:
 
 
 class Dataset(BaseDataset):
-
     name = "w8a"
 
     parameters = {}
-    
+
     requirements = ["scikit-learn"]
 
     def get_data(self):

@@ -3,7 +3,6 @@ import urllib.request
 import gzip
 
 from benchopt import safe_import_context
-from benchopt.config import get_data_path
 from benchmark_utils.data import DiskDataset
 
 with safe_import_context() as import_ctx:
@@ -11,10 +10,8 @@ with safe_import_context() as import_ctx:
 
 # Base URL and filenames for MNIST data
 BASE_URL = "https://storage.googleapis.com/cvdf-datasets/mnist/"
-FILES = {
-    "train_images": "train-images-idx3-ubyte.gz",
-    "test_images": "t10k-images-idx3-ubyte.gz"
-}
+FILES = {"train_images": "train-images-idx3-ubyte.gz", "test_images": "t10k-images-idx3-ubyte.gz"}
+
 
 def download_mnist_to_disk(base_path):
     raw_path = os.path.join(base_path, "mnist", "raw")
@@ -26,24 +23,26 @@ def download_mnist_to_disk(base_path):
             urllib.request.urlretrieve(BASE_URL + filename, out_path)
     return raw_path
 
+
 def extract_images_from_file(filepath):
-    with gzip.open(filepath, 'rb') as f:
-        _ = int.from_bytes(f.read(4), 'big')  # Magic number
-        num_images = int.from_bytes(f.read(4), 'big')
-        rows = int.from_bytes(f.read(4), 'big')
-        cols = int.from_bytes(f.read(4), 'big')
+    with gzip.open(filepath, "rb") as f:
+        _ = int.from_bytes(f.read(4), "big")  # Magic number
+        num_images = int.from_bytes(f.read(4), "big")
+        rows = int.from_bytes(f.read(4), "big")
+        cols = int.from_bytes(f.read(4), "big")
         data = np.frombuffer(f.read(), dtype=np.uint8)
-        return data.reshape(num_images, rows * cols).astype('float32') / 255.0
+        return data.reshape(num_images, rows * cols).astype("float32") / 255.0
+
 
 def get_mnist_on_disk(base_path):
-        raw_path = download_mnist_to_disk(base_path)
-        train_images = extract_images_from_file(os.path.join(raw_path, FILES["train_images"]))
-        test_images = extract_images_from_file(os.path.join(raw_path, FILES["test_images"]))
-        all_images = np.vstack([train_images, test_images])
-        return all_images
+    raw_path = download_mnist_to_disk(base_path)
+    train_images = extract_images_from_file(os.path.join(raw_path, FILES["train_images"]))
+    test_images = extract_images_from_file(os.path.join(raw_path, FILES["test_images"]))
+    all_images = np.vstack([train_images, test_images])
+    return all_images
+
 
 class Dataset(DiskDataset):
-
     name = "mnist"
     parameters = {}
     requirements = ["numpy", "gzip"]
@@ -54,20 +53,24 @@ class Dataset(DiskDataset):
             urllib.request.urlretrieve(BASE_URL + filename, out_path)
 
     def extract_images_from_file(self, filepath):
-        with gzip.open(filepath, 'rb') as f:
-            _ = int.from_bytes(f.read(4), 'big')  # Magic number
-            num_images = int.from_bytes(f.read(4), 'big')
-            rows = int.from_bytes(f.read(4), 'big')
-            cols = int.from_bytes(f.read(4), 'big')
+        with gzip.open(filepath, "rb") as f:
+            _ = int.from_bytes(f.read(4), "big")  # Magic number
+            num_images = int.from_bytes(f.read(4), "big")
+            rows = int.from_bytes(f.read(4), "big")
+            cols = int.from_bytes(f.read(4), "big")
             data = np.frombuffer(f.read(), dtype=np.uint8)
-            return data.reshape(num_images, rows * cols).astype('float32') / 255.0
-    
+            return data.reshape(num_images, rows * cols).astype("float32") / 255.0
+
     def preprocess_and_save(self, raw_data_dir, data_dir):
-        train_images = self.extract_images_from_file(os.path.join(raw_data_dir, FILES["train_images"]))
-        test_images = self.extract_images_from_file(os.path.join(raw_data_dir, FILES["test_images"]))
+        train_images = self.extract_images_from_file(
+            os.path.join(raw_data_dir, FILES["train_images"])
+        )
+        test_images = self.extract_images_from_file(
+            os.path.join(raw_data_dir, FILES["test_images"])
+        )
         all_images = np.vstack([train_images, test_images])
         np.save(os.path.join(data_dir, "data.npy"), all_images)
-    
+
     def load(self, data_dir):
-         X = np.load(os.path.join(data_dir, "data.npy"))
-         return X
+        X = np.load(os.path.join(data_dir, "data.npy"))
+        return X

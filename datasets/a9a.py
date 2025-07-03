@@ -4,8 +4,8 @@ from benchopt.config import get_data_path
 with safe_import_context() as import_ctx:
     from sklearn.datasets import fetch_openml
 
-class Dataset(BaseDataset):
 
+class Dataset(BaseDataset):
     name = "a9a"
 
     parameters = {}
@@ -17,4 +17,3 @@ class Dataset(BaseDataset):
         X = fetch_openml(name="a9a", data_home=data_home)
         X = X.data.toarray()
         return dict(X=X)
-    

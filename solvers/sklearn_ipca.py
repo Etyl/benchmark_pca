@@ -7,12 +7,11 @@ with safe_import_context() as import_ctx:
 
 # https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.IncrementalPCA.html
 
-class Solver(BaseSolver):
-    name = 'sklearn_ipca'
 
-    parameters = {
-        "batch_size" : [5, 10, 50, 100]
-    }
+class Solver(BaseSolver):
+    name = "sklearn_ipca"
+
+    parameters = {"batch_size": [5, 10, 50, 100]}
 
     requirements = ["scikit-learn"]
 
@@ -22,9 +21,9 @@ class Solver(BaseSolver):
         self.X, self.n_components = X, n_components
 
     def pre_run_hook(self, callback):
-        self.ipca_transform = IncrementalPCA(n_components=self.n_components, 
-                                             batch_size=self.batch_size, 
-                                             whiten=True) # normalize eigenvectors
+        self.ipca_transform = IncrementalPCA(
+            n_components=self.n_components, batch_size=self.batch_size, whiten=True
+        )  # normalize eigenvectors
 
     def run(self, callback):
         for batch_slice in gen_batches(self.X.shape[0], self.batch_size):
@@ -32,9 +31,8 @@ class Solver(BaseSolver):
             self.components = self.ipca_transform.components_.T
             callback()
         # hacky, enforce the log of the last iteration
-        callback.next_stopval = callback.it 
+        callback.next_stopval = callback.it
         callback()
 
     def get_result(self):
         return dict(components=self.components)
-

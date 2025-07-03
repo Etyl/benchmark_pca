@@ -1,6 +1,5 @@
-import os 
-from benchopt import BaseDataset, safe_import_context
-from benchopt.config import get_data_path
+import os
+from benchopt import safe_import_context
 
 with safe_import_context() as import_ctx:
     import numpy as np
@@ -8,25 +7,27 @@ with safe_import_context() as import_ctx:
     from benchmark_utils.data import DiskDataset
     from benchmark_utils.stiefel import uniform
 
+
 def generate_gaussian(n_samples, n_features, rank, random_seed):
-        generator = np.random.default_rng(random_seed)
-        ortho_generator = scipy.stats.ortho_group(max(rank, n_features), generator)
-        W = ortho_generator.rvs()[:n_features, :rank]
-        C = generator.normal(size=(rank, n_samples))
-        X = W @ C
-        return X
+    generator = np.random.default_rng(random_seed)
+    ortho_generator = scipy.stats.ortho_group(max(rank, n_features), generator)
+    W = ortho_generator.rvs()[:n_features, :rank]
+    C = generator.normal(size=(rank, n_samples))
+    X = W @ C
+    return X
+
 
 class Dataset(DiskDataset):
     # data which is not low-rank, but which is really close to
     name = "kgaussian"
 
     parameters = {
-        'n, d': [
+        "n, d": [
             (100, 50),
             (500, 20),
         ],
-        'rank' : [10], # "rank"
-        'random_seed': [2112],
+        "rank": [10],  # "rank"
+        "random_seed": [2112],
     }
 
     requirements = ["numpy", "scipy"]
@@ -42,5 +43,5 @@ class Dataset(DiskDataset):
         np.save(os.path.join(data_dir, "data.npy"), X)
 
     def load(self, data_dir):
-         X = np.load(os.path.join(data_dir, "data.npy"))
-         return X
+        X = np.load(os.path.join(data_dir, "data.npy"))
+        return X
