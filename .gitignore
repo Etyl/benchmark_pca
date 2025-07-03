@@ -4,7 +4,8 @@ __pycache__
 __cache__
 *.egg-info
 .coverage
-**/outputs
+**/outputs/
+benchopt_run/
 joblib/
 data/
 
@@ -13,12 +14,9 @@ data/
 
 # Config files
 benchopt.ini
-
 .DS_Store
 coverage.xml
+slurm_cfg.yaml
 
 # Notebooks
 *.ipynb
-
-# Run scripts 
-scripts/
