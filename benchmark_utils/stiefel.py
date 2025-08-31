@@ -42,9 +42,9 @@ def _qr_retraction(W: np.ndarray, G: np.ndarray, step_size: float) -> np.ndarray
 
 
 def _polar_retraction(W: np.ndarray, G: np.ndarray, step_size: float) -> np.ndarray:
-    eig, U = np.linalg.eigh(np.eye(W.shape[1]) + step_size**2 * G.T @ G)
-    inv_squared_root = U @ np.diag(1 / np.sqrt(eig)) @ U.T
-    return (W - step_size * G) @ inv_squared_root
+    M = W - step_size * G
+    U, _, Vh = np.linalg.svd(M, full_matrices=False)
+    return U @ Vh
 
 
 def _A(W: np.ndarray, G: np.ndarray, proj=True) -> np.ndarray:
