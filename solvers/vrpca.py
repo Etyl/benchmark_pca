@@ -51,9 +51,11 @@ class Solver(BaseSolver):
             U, _, Vh = np.linalg.svd(W.T @ W_tilde, full_matrices=False, compute_uv=True)
             B = Vh.T @ U.T
             Xb = self.X[indices].T
-            W_prime = W + self.step_size * (Xb @ (Xb.T @ W - Xb.T @ (W_tilde @ B)) + U_tilde @ B)
+            W_prime = W + self.step_size * (
+                Xb @ (Xb.T @ W - Xb.T @ (W_tilde @ B)) / self.batch_size + U_tilde @ B
+            )
             W = W_prime @ linalg.inv_squared_root(W_prime.T @ W_prime)
-            self.components = W_tilde
+            self.components = W
             i += 1
 
     def get_result(self):

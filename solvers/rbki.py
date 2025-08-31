@@ -1,4 +1,3 @@
-from benchopt.stopping_criterion import NoCriterion
 from benchopt import BaseSolver, safe_import_context
 
 with safe_import_context() as import_ctx:
@@ -12,13 +11,13 @@ class Solver(BaseSolver):
     name = "rbki"
 
     parameters = {
-        "q": [6],
+        "q": [1, 3, 6],
         "oversampling_ratio": [1, 1.5, 2, 3],
     }
 
     requirements = ["scipy"]
 
-    stopping_criterion = NoCriterion(strategy="callback")
+    sampling_strategy = "run_once"
 
     def get_next(self, stop_val):
         return stop_val + 1
@@ -27,9 +26,8 @@ class Solver(BaseSolver):
         self.X = X
         self.n_components = n_components
 
-    def run(self, callback):
-        self.random_seed = callback.meta["idx_rep"]
-        generator = np.random.default_rng(self.random_seed)
+    def run(self, n_iter):
+        generator = np.random.default_rng()  # no reproducibility, as no access to rep_idx
         n, d = self.X.shape
         q = self.q
 
@@ -54,10 +52,6 @@ class Solver(BaseSolver):
         Y = Y_t.copy()
         Z = Z_t.copy()
 
-        U, _, _ = np.linalg.svd(Y.T, full_matrices=False, compute_uv=True)
-        self.components = (Z @ U)[:, : self.n_components]
-        callback()
-
         for i in range(self.q - 1):
             Z_t = X @ Y_t
             Z_t = Z_t - Z @ (Z.T @ Z_t)
@@ -67,9 +61,8 @@ class Solver(BaseSolver):
             Z = np.concatenate([Z, Z_t], axis=1)  # if too slow preallocate Z and Y at the beggining
             Y = np.concatenate([Y, Y_t], axis=1)
 
-            U, _, _ = np.linalg.svd(Y.T, full_matrices=False, compute_uv=True)
-            self.components = (Z @ U)[:, : self.n_components]
-            callback()
+        U, _, _ = np.linalg.svd(Y.T, full_matrices=False, compute_uv=True)
+        self.components = (Z @ U)[:, : self.n_components]
 
     def get_result(self):
         return dict(components=self.components)
