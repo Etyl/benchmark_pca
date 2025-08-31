@@ -2,9 +2,7 @@ from benchopt.stopping_criterion import NoCriterion
 from benchopt import BaseSolver, safe_import_context
 
 with safe_import_context() as import_ctx:
-    from benchopt.utils import profile
     import numpy as np
-    from benchmark_utils import constants
 
 # Pseudo-code from https://arxiv.org/pdf/2306.12418
 # Use of "Simple" version, TODO: add the extended one to gain 33% speed
@@ -14,7 +12,6 @@ class Solver(BaseSolver):
     name = "rbki"
 
     parameters = {
-        "random_seed": [constants.RANDOM_SEED],
         "q": [6],
         "oversampling_ratio": [1, 1.5, 2, 3],
     }
@@ -30,8 +27,8 @@ class Solver(BaseSolver):
         self.X = X
         self.n_components = n_components
 
-    @profile
     def run(self, callback):
+        self.random_seed = callback.meta["idx_rep"]
         generator = np.random.default_rng(self.random_seed)
         n, d = self.X.shape
         q = self.q

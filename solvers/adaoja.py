@@ -12,7 +12,6 @@ class Solver(BaseSolver):
     name = "adaoja"
 
     parameters = {
-        "random_seed": [constants.RANDOM_SEED],
         "b0": [1e-5, 1e-3, 1e-1],
         "batch_size": [1, 10, 50],
     }
@@ -28,6 +27,7 @@ class Solver(BaseSolver):
         self.n_components = n_components
 
     def run(self, callback):
+        self.random_seed = callback.meta["idx_rep"]
         generator = np.random.default_rng(self.random_seed)
         n, d = self.X.shape
         k = self.n_components

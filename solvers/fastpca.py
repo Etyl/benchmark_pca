@@ -9,7 +9,6 @@ class Solver(BaseSolver):
 
     parameters = {
         "step_size": [1, 0.7, 1e-2, 1e-3],
-        "random_seed": [constants.RANDOM_SEED],
         "size": [10, 20, 40],
     }
 
@@ -41,6 +40,7 @@ class Solver(BaseSolver):
         return h1 + h2 + h3
 
     def run(self, callback):
+        self.random_seed = callback.meta["idx_rep"]
         size = self.size
         full_data = self.X
         print("Full data shape:", full_data.shape)

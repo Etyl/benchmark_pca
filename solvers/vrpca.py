@@ -15,7 +15,6 @@ class Solver(BaseSolver):
         "step_size": [1e-3, 1e-2, 1e-1, 1],
         "batch_size": [1, 10],
         "epoch_size": [10, 100, 1000],  # still way less than indicated in paper ~ n
-        "random_seed": [constants.RANDOM_SEED],
     }
 
     requirements = ["scipy"]
@@ -29,6 +28,7 @@ class Solver(BaseSolver):
         self.n_components = n_components
 
     def run(self, callback):
+        self.random_seed = callback.meta["idx_rep"]
         generator = np.random.default_rng(self.random_seed)
         n, d = self.X.shape
         k = self.n_components

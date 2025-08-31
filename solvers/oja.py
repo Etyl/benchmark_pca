@@ -13,7 +13,6 @@ class Solver(BaseSolver):
 
     parameters = {
         "step_size": [1e-4, 1e-3, 1e-2, 1e-1],
-        "random_seed": [constants.RANDOM_SEED],
         "batch_size": [1, 10],
     }
 
@@ -28,6 +27,7 @@ class Solver(BaseSolver):
         self.n_components = n_components
 
     def run(self, callback):
+        self.random_seed = callback.meta["idx_rep"]
         generator = np.random.default_rng(self.random_seed)
         n, d = self.X.shape
         k = self.n_components

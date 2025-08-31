@@ -13,7 +13,6 @@ class Solver(BaseSolver):
 
     parameters = {
         "step_size": [1e-2, 1e-1, 1],
-        "random_seed": [constants.RANDOM_SEED],
         "batch_size": [1, 10],
         "retraction": ["QR", "cayley"],  # exp is too long to run and polar is unstable
     }
@@ -29,6 +28,7 @@ class Solver(BaseSolver):
         self.n_components = n_components
 
     def run(self, callback):
+        self.random_seed = callback.meta["idx_rep"]
         generator = np.random.default_rng(self.random_seed)
         X = self.X
         n, d = X.shape
