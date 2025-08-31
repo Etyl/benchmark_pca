@@ -8,7 +8,7 @@ __cache__
 benchopt_run/
 joblib/
 data/
-
+**cache
 # IDE specific folders
 .vscode
 
