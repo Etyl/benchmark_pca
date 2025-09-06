@@ -3,7 +3,8 @@ from benchopt import BaseSolver, safe_import_context
 with safe_import_context() as import_ctx:
     import numpy as np
     from benchopt.stopping_criterion import SufficientProgressCriterion
-    from benchmark_utils import constants, stiefel
+    from benchmark_utils import constants
+    from benchmark_utils import stiefel
 
 # Pseudo-code from https://arxiv.org/pdf/1905.12115
 
@@ -12,8 +13,8 @@ class Solver(BaseSolver):
     name = "adaoja"
 
     parameters = {
-        "b0": [1e-5, 1e-3, 1e-1],
-        "batch_size": [1, 10, 50],
+        "b0": [1e-5],
+        "batch_size": [10],
     }
 
     requirements = ["scipy"]

@@ -21,3 +21,7 @@ benchopt.yml
 
 # Notebooks
 *.ipynb
+
+# Output files 
+*.pdf
+*.png

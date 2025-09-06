@@ -1,0 +1,16 @@
+objective:
+  - pca[n_components=12]
+dataset:
+  - a9a
+solver: 
+  - adaoja[b0=1e-3,batch_size=10]
+  - oja[step_size=1e-3,batch_size=10]
+  - srgd[step_size=1e-3,batch_size=1,retraction=QR]
+  - vrpca[step_size=1e-3,batch_size=10,epoch_size=100]
+  - krasulina[step_size=1e-3,batch_size=10]
+  - sklearn_pca
+  - sklearn_ipca[batch_size=10]
+  - rbki[oversampling_ratio=1.5]
+n-repetitions: 1
+timeout: 60
+output: all_cheap

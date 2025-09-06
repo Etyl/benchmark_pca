@@ -1,0 +1,37 @@
+Before report : 
+batch sizes -> fixed, only needed for VR-PCA
+random seeds -> fixed
+RBKI doens't run -> because currently estimated subspace is often too small so even with truncation you don't go as far as wanted, switch back to single evaluation point
+VR PCA flat -> fixed, wrong thing was used as components 
+maybe see fast for srgd why the big batch size could go bad 
+Scikit-learn centering issue -> fixed 
+
+Change to no_criterion for nice plots with all the curve full 
+
+Possibly: 
+better polar with SVD -> done
+
+
+After report:
+
+Sparse Orthogonalizations
+
+Investigate sign flipping, including in QRs, and in other methods
+
+Add basic Power Method 
+
+Add simu exp, simu lin, simu uni with SVD based random data matrices with GT PCA :
+- for exp, in the form (exp(-alpha * k/n))_k singular values
+- for lin, (k+1/n)
+- for uniform, uniform(0,1)
+
+fix datasets with their sources
+
+VR-PCA: replace with frequencies instead of raw values, and use clearer notations
+Incremental PCA don't work 
+
+bug benchopt : solver has no attributes .components (for cache of singlue run)
+
+
+Distributed not used because iteration wise, better all reduce because the larger the batch size the better 
+Preciseness of performance model bandwidth latency 
