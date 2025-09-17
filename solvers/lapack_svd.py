@@ -1,9 +1,6 @@
-from benchopt import BaseSolver, safe_import_context
+from scipy.linalg import svd
 
-
-with safe_import_context() as import_ctx:
-    from scipy.linalg import svd
-
+from benchopt import BaseSolver
 
 class Solver(BaseSolver):
     name = "lapack-svd"

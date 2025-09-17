@@ -1,11 +1,9 @@
+import numpy as np
+
 from benchmark_utils import linalg
-from benchopt import BaseSolver, safe_import_context
-
-with safe_import_context() as import_ctx:
-    import numpy as np
-    from benchopt.stopping_criterion import SufficientProgressCriterion
-    from benchmark_utils import constants, stiefel
-
+from benchopt import BaseSolver
+from benchopt.stopping_criterion import SufficientProgressCriterion
+from benchmark_utils import constants, stiefel
 
 # Pseudo-code from https://proceedings.mlr.press/v48/shamira16.pdf
 class Solver(BaseSolver):

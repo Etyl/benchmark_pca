@@ -1,10 +1,9 @@
-from benchopt import BaseSolver, safe_import_context
+import numpy as np
 
-with safe_import_context() as import_ctx:
-    import numpy as np
-    from benchopt.stopping_criterion import SufficientProgressCriterion
-    from benchmark_utils import stiefel
-    from benchmark_utils import constants
+from benchopt import BaseSolver
+from benchopt.stopping_criterion import SufficientProgressCriterion
+from benchmark_utils import stiefel
+from benchmark_utils import constants
 
 # Pseudo-code from https://arxiv.org/pdf/1905.12115
 

@@ -1,9 +1,6 @@
-from benchopt import BaseSolver, safe_import_context
+from sklearn.utils.extmath import randomized_svd
 
-
-with safe_import_context() as import_ctx:
-    from sklearn.utils.extmath import randomized_svd
-
+from benchopt import BaseSolver
 
 class Solver(BaseSolver):
     name = "randomized-pca"

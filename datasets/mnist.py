@@ -1,12 +1,9 @@
 import os
 import urllib.request
 import gzip
+import numpy as np
 
-from benchopt import safe_import_context
 from benchmark_utils.data import DiskDataset
-
-with safe_import_context() as import_ctx:
-    import numpy as np
 
 # Base URL and filenames for MNIST data
 BASE_URL = "https://storage.googleapis.com/cvdf-datasets/mnist/"

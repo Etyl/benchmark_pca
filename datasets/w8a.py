@@ -1,8 +1,7 @@
-from benchopt import BaseDataset, safe_import_context
-from benchopt.config import get_data_path
+from sklearn.datasets import fetch_openml
 
-with safe_import_context() as import_ctx:
-    from sklearn.datasets import fetch_openml
+from benchopt import BaseDataset
+from benchopt.config import get_data_path
 
 
 class Dataset(BaseDataset):

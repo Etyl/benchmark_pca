@@ -1,9 +1,8 @@
-from benchopt import BaseSolver, safe_import_context
+import numpy as np
 
-with safe_import_context() as import_ctx:
-    import numpy as np
-    from benchopt.stopping_criterion import SufficientProgressCriterion
-    from benchmark_utils import constants, stiefel
+from benchopt import BaseSolver
+from benchopt.stopping_criterion import SufficientProgressCriterion
+from benchmark_utils import constants, stiefel
 
 # Pseudo-code from https://proceedings.neurips.cc/paper_files/paper/2019/file/38faae069a1371784081ea9ad9b279d0-Paper.pdf
 # in which convention X.shape = (k,d)

@@ -1,4 +1,5 @@
 import numpy as np
+
 from benchmark_utils import constants, stiefel
 from benchopt.stopping_criterion import SufficientProgressCriterion
 from benchopt.base import BaseSolver

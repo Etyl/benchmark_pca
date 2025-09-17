@@ -1,7 +1,6 @@
-from benchopt import BaseSolver, safe_import_context
+import numpy as np
 
-with safe_import_context() as import_ctx:
-    import numpy as np
+from benchopt import BaseSolver
 
 # Pseudo-code from https://arxiv.org/pdf/2306.12418
 # Use of "Simple" version, TODO: add the extended one to gain 33% speed
