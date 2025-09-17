@@ -5,8 +5,6 @@ import shutil
 from benchopt.base import BaseDataset
 from benchopt.config import get_data_path
 
-# TODO: Add facility for custom cache validation ?
-
 
 def read_data_status(status_path):
     """
@@ -65,8 +63,7 @@ class DiskDataset(BaseDataset):
             raise ValueError(f"data status should be 'preprocessed', current status is {status}")
 
         print(f"Using existing preprocessed {self.name} data.")
-        X = self.load(data_dir)
-        return dict(X=X)
+        return self.load(data_dir)
 
     def download(self, raw_data_dir):
         raise NotImplementedError("Subclass of DiskDataset should implement download method")

@@ -73,4 +73,4 @@ class Dataset(DiskDataset):
 
     def load(self, data_dir):
         X = np.load(os.path.join(data_dir, "data.npy"))
-        return X
+        return dict(X=X)
