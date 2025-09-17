@@ -15,9 +15,11 @@ class Objective(BaseObjective):
 
     min_benchopt_version = "1.5"  # To check
 
-    def set_data(self, X):
+    def set_data(self, X, W=None):
         self.X = X
         self.X_norm = np.linalg.norm(X, "fro")
+        if W is not None:
+            self.W = W
 
     def evaluate_result(self, components):
         if components.shape[0] != self.X.shape[1] or components.shape[1] != self.n_components:

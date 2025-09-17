@@ -1,22 +1,31 @@
-import os
-from benchopt import safe_import_context
+import numpy as np
 
-with safe_import_context() as import_ctx:
-    import numpy as np
-    from benchmark_utils.data import DiskDataset
-    from benchmark_utils.stiefel import uniform
+from benchopt.benchmark import get_running_benchmark
+from benchmark_utils.data import BaseDataset
+from benchmark_utils.stiefel import uniform
 
+def generate_data(n, d, rank, decay_function, decay_alpha, random_seed):
+    W = uniform(d, rank, random_seed)
+    if decay_function == "linear":
+        S = 1 / (1 + decay_alpha * np.arange(rank))
+    elif decay_function == "sqrt":
+        S = 1 / (1 + np.sqrt(decay_alpha * np.arange(rank)))
+    elif decay_function == "exp":
+        S = np.exp(-decay_alpha * np.linspace(0, 1, rank))
+    else:
+        raise ValueError(f"Unknown decay function {decay_function}")
+    V = uniform(n, rank, random_seed + 1)
+    X = W @ np.diag(S) @ V.T
+    return X, W
 
-class Dataset(DiskDataset):
+class Dataset(BaseDataset):
     """Simulated low rank matrix with ground truth PCA (up to numerical precision)."""
 
     name = "simulated"
 
     parameters = {
-        "n, d": [
-            (100, 50),
-            (500, 20),
-        ],
+        "n": [100,1000],
+        "d": [100, 1000],
         "rank": [10],
         "decay_function": ["linear", "sqrt", "exp"],
         "decay_alpha": [1],
@@ -25,25 +34,19 @@ class Dataset(DiskDataset):
 
     requirements = ["numpy", "scipy"]
 
-    def download(self, raw_data_dir):
-        pass
-
-    def preprocess_and_save(self, raw_data_dir, data_dir):
-        W = uniform(self.d, self.rank, self.random_seed)
-        if self.decay_function == "linear":
-            S = 1 / (1 + self.decay_alpha * np.arange(self.rank))
-        elif self.decay_function == "sqrt":
-            S = 1 / (1 + np.sqrt(self.decay_alpha * np.arange(self.rank)))
-        elif self.decay_function == "exp":
-            S = np.exp(-self.decay_alpha * np.linspace(0, 1, self.rank))
-        else:
-            raise ValueError(f"Unknown decay function {self.decay_function}")
-        V = uniform(self.n, self.rank, self.random_seed + 1)
-        X = W @ np.diag(S) @ V.T
-        np.save(os.path.join(data_dir, "data.npy"), X)
-        np.save(os.path.join(data_dir, "gt.npy"), W)
-
-    def load(self, data_dir):
-        X = np.load(os.path.join(data_dir, "data.npy"))
-        W = np.load(os.path.join(data_dir, "gt.npy"))
+    def get_data(self):
+        benchmark = get_running_benchmark()
+        if benchmark is None:
+            raise RuntimeError(
+                "This dataset can only be instantiated with a running benchmark."
+            )
+        generate_function = benchmark.cache(generate_data)
+        X, W = generate_function(
+            n = self.n,
+            d = self.d,
+            rank = self.rank,
+            decay_function = self.decay_function,
+            decay_alpha = self.decay_alpha,
+            random_seed = self.random_seed,
+        )
         return dict(X=X, W=W)
