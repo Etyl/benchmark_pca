@@ -7,7 +7,7 @@ with safe_import_context() as import_ctx:
 
 # Pseudo-code from https://proceedings.neurips.cc/paper_files/paper/2019/file/38faae069a1371784081ea9ad9b279d0-Paper.pdf
 # in which convention X.shape = (k,d)
-# TODO: Add Warm Start version
+# no warm-start version
 
 
 class Solver(BaseSolver):
@@ -42,9 +42,7 @@ class Solver(BaseSolver):
             Xb = self.X[indices].T  # minibatch of dim (d, self.batch_size)
             wx = W.T @ Xb  # micro optim to save kdb iterations
             W = W + self.step_size * (Xb - W @ (wx)) @ wx.T / self.batch_size
-            W, _ = np.linalg.qr(
-                W, mode="reduced"
-            )  # TODO: Add "stabilized" SVD based orthogonalization
+            W, _ = np.linalg.qr(W, mode="reduced")
             self.components = W
 
     def get_result(self):

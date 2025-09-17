@@ -2,8 +2,9 @@ from benchopt import BaseSolver, safe_import_context
 
 with safe_import_context() as import_ctx:
     import numpy as np
-    from benchopt.stopping_criterion import NoCriterion
+    from benchopt.stopping_criterion import SufficientProgressCriterion
     from benchmark_utils import stiefel
+    from benchmark_utils import constants
 
 # Pseudo-code from https://arxiv.org/pdf/1111.5280
 
@@ -16,19 +17,15 @@ class Solver(BaseSolver):
         "batch_size": [10],
         "retraction": [
             "QR",
-            "polar",
-            "exp",
             "cayley",
         ],  # exp is too long to run and polar is unstable
     }
 
     requirements = ["scipy"]
 
-    # stopping_criterion = SufficientProgressCriterion(
-    #     eps=constants.EPS, patience=constants.PATIENCE, strategy="callback"
-    # )
-
-    stopping_criterion = NoCriterion(strategy="callback")
+    stopping_criterion = SufficientProgressCriterion(
+        eps=constants.EPS, patience=constants.PATIENCE, strategy="callback"
+    )
 
     def set_objective(self, X, n_components):
         self.X = X

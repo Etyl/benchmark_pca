@@ -3,16 +3,16 @@ from benchmark_utils import constants, stiefel
 from benchopt.stopping_criterion import SufficientProgressCriterion
 from benchopt.base import BaseSolver
 
+# pseudo-code from https://arxiv.org/pdf/2108.12373
+# perform surprinsingly bad (in theory, self.prof = False) compared to announced results, can't exclude an implementation error
+
 
 class Solver(BaseSolver):
     name = "fastpca"
 
-    parameters = {
-        "step_size": [1, 0.7, 1e-2, 1e-3],
-        "size": [10, 20, 40],
-    }
+    parameters = {"step_size": [1, 0.7, 1e-2, 1e-3], "size": [10, 20, 40], "proj": [True, False]}
 
-    requirements = ["numpy"]
+    requirements = ["scipy"]
 
     stopping_criterion = SufficientProgressCriterion(
         eps=constants.EPS, patience=constants.PATIENCE, strategy="callback"
@@ -23,9 +23,6 @@ class Solver(BaseSolver):
         self.n_components = n_components
 
     def slow_pseudo_gradient(self, C, X):
-        # C of dim (d, d)
-        # X of dim (d, k)
-
         h1 = np.zeros_like(X)
         h2 = np.zeros_like(h1)
         h3 = np.zeros_like(h1)
@@ -43,7 +40,6 @@ class Solver(BaseSolver):
         self.random_seed = callback.meta["idx_rep"]
         size = self.size
         full_data = self.X
-        print("Full data shape:", full_data.shape)
         k = self.n_components
 
         generator = np.random.default_rng(self.random_seed)
@@ -55,8 +51,6 @@ class Solver(BaseSolver):
             [full_data[perm][n * i : n * (i + 1)].T for i in range(size)]
         )  # shape: (size, d, n)
         d, n = Xs.shape[1], Xs.shape[2]
-        print("X shape:", Xs.shape)
-        print("d, n, k:", d, n, k)
 
         # Initialization
         Cs = np.matmul(Xs, np.transpose(Xs, (0, 2, 1)))  # (size, d, d)
@@ -69,15 +63,20 @@ class Solver(BaseSolver):
             hs[i] = self.slow_pseudo_gradient(Cs[i], Ws[i])
         ss = hs.copy()
 
-        self.components = Ws[0] / np.linalg.norm(Ws[0], axis=0, keepdims=True)
+        self.components = Ws[0] / np.linalg.norm(
+            Ws[0], axis=0, keepdims=True
+        )  # use first rank for evaluation
 
         while callback():
-            # Simulate Allreduce for W (mean over all "ranks")
+            # Simulate Allreduce for W
             W_rcv = Ws.mean(axis=0)
-            # mean between current estimate and gossip average
             Ws = Ws / 2 + W_rcv / 2 + self.step_size * ss
 
-            # Simulate Allreduce for s (mean over all "ranks")
+            if self.proj:
+                for i in range(size):
+                    Ws[i] = np.linalg.qr(Ws[i], mode="reduced")[0]
+
+            # Simulate Allreduce for s
             s_rcv = ss.mean(axis=0)
             hs_new = np.zeros_like(hs)
             for i in range(size):

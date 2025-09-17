@@ -14,7 +14,7 @@ class Solver(BaseSolver):
     parameters = {
         "step_size": [1e-3, 1e-2],
         "batch_size": [50],
-        "epoch_size": [100, 1000],  # still way less than indicated in paper ~ n
+        "epoch_fraction": [0.01, 0.1, 0.5],
     }
 
     requirements = ["scipy"]
@@ -32,6 +32,8 @@ class Solver(BaseSolver):
         generator = np.random.default_rng(self.random_seed)
         n, d = self.X.shape
         k = self.n_components
+        epoch_size = int(n * self.epoch_fraction // self.batch_size)
+        assert epoch_size > 0, "epoch_fraction is too small compared to batch_size"
 
         X = self.X.T
 
@@ -43,7 +45,7 @@ class Solver(BaseSolver):
 
         i = 0
         while callback():
-            if i % self.epoch_size == 0:
+            if i % epoch_size == 0:
                 W_tilde = W
                 U_tilde = X @ (X.T @ W_tilde) / n
 

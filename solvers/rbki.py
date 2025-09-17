@@ -15,7 +15,7 @@ class Solver(BaseSolver):
         "oversampling_ratio": [1, 1.5, 2, 3],
     }
 
-    requirements = ["scipy"]
+    requirements = ["numpy"]
 
     sampling_strategy = "run_once"
 
