@@ -27,7 +27,7 @@ def mark_data_status(status_path, status):
     with open(status_path, "w") as f:
         json.dump({"status": status}, f)
 
-
+# no cache validation mechanism, only one status per class, no automatic handling of parameter and code changes
 class DiskDataset(BaseDataset):
     def clean_folder(self, data_dir):
         if os.path.exists(data_dir):
