@@ -27,7 +27,7 @@ class Objective(BaseObjective):
         ortho_diagnostic = np.max(
             np.abs(components.T @ components - np.eye(self.n_components)).flatten()
         )
-        unexplained_var = 1 - np.linalg.norm(self.X @ components, "fro") / self.X_norm
+        unexplained_var = 1 - (np.linalg.norm(self.X @ components, "fro") / self.X_norm) ** 2
         return dict(value=unexplained_var, ortho_diagnostic=ortho_diagnostic)
 
     def get_one_result(self):
