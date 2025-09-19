@@ -7,7 +7,7 @@ with safe_import_context() as import_ctx:
 class Objective(BaseObjective):
     name = "pca"
 
-    url = "https://github.com/MortimerTP/benchmark_distributed_pca"
+    url = "https://github.com/MortimerTP/benchmark_pca"
 
     parameters = {"n_components": [2, 12, 24]}
 
