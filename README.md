@@ -1,11 +1,6 @@
 Truncated PCA Benchmark
 ===============================
 
-Problem definition
-------------------
-
-TODO: Complete
-
 Install
 --------
 
