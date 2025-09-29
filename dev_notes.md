@@ -33,10 +33,10 @@ Add other compression metrics from SDRBench
 
 Various
 ===
-
 Investigate subspace tracking techniques and use it to quantify (not too expensively) how much the PCA basis may change along a simulation  
 
 Better understanding of LOBPCG (<3) and how to exploit our current estimate to further accelerate convergence 
+
 
 Benchopt 
 ===
@@ -45,4 +45,7 @@ Hyperparameter optimization
 
 When an algorithm doesn't always respect the constraints, de-count projection from evaluation time ? (valable also for the question of the distribed evaluation of the mean parameters vs each single node parameters) 
 
+Remove the safe_context from benchopt template benchmark __init__.py file in benchmark_utils
+
 Bugs : solver has no attributes .components for cache of a run_once algorithm ; 
+

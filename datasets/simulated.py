@@ -49,4 +49,4 @@ class Dataset(BaseDataset):
             decay_alpha = self.decay_alpha,
             random_seed = self.random_seed,
         )
-        return dict(X=X, W=W)
+        return dict(X=X.T, W=W)
