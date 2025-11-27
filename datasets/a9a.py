@@ -3,6 +3,7 @@ from sklearn.datasets import fetch_openml
 from benchopt import BaseDataset
 from benchopt.config import get_data_path
 
+
 class Dataset(BaseDataset):
     name = "a9a"
 

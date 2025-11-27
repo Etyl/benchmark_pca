@@ -2,10 +2,13 @@ from scipy.linalg import svd
 
 from benchopt import BaseSolver
 
+
 class Solver(BaseSolver):
     name = "lapack-svd"
 
-    parameters = {"solver": ["gesvd", "gesdd"]}
+    parameters = {
+        "solver": ["gesvd", "gesdd"]
+    }
 
     requirements = ["scipy"]
 

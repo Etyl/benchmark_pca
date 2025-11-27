@@ -7,8 +7,6 @@ with safe_import_context() as import_ctx:
 class Objective(BaseObjective):
     name = "pca"
 
-    url = "https://github.com/MortimerTP/benchmark_pca"
-
     parameters = {"n_components": [2, 12, 24]}
 
     requirements = ["numpy"]
@@ -22,14 +20,21 @@ class Objective(BaseObjective):
             self.W = W
 
     def evaluate_result(self, components):
-        if components.shape[0] != self.X.shape[1] or components.shape[1] != self.n_components:
+        if (
+            components.shape[0] != self.X.shape[1] or
+            components.shape[1] != self.n_components
+        ):
             raise ValueError(
-                f"components should be of shape ({self.X.shape[1]},{self.n_components}), current shape {components.shape}"
+                f"components should be of shape "
+                f"({self.X.shape[1]},{self.n_components}), "
+                f"current shape {components.shape}"
             )
         ortho_diagnostic = np.max(
-            np.abs(components.T @ components - np.eye(self.n_components)).flatten()
+            np.abs(components.T @ components - np.eye(self.n_components))
+        ).flatten()
+        unexplained_var = 1 - (
+            (np.linalg.norm(self.X @ components, "fro") / self.X_norm) ** 2
         )
-        unexplained_var = 1 - (np.linalg.norm(self.X @ components, "fro") / self.X_norm) ** 2
         return dict(value=unexplained_var, ortho_diagnostic=ortho_diagnostic)
 
     def get_one_result(self):

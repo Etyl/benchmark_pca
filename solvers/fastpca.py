@@ -5,13 +5,18 @@ from benchopt.stopping_criterion import SufficientProgressCriterion
 from benchopt.base import BaseSolver
 
 # pseudo-code from https://arxiv.org/pdf/2108.12373
-# perform surprinsingly bad (in theory, self.prof = False) compared to announced results, can't exclude an implementation error
+# perform surprinsingly bad (in theory, self.prof = False) compared
+# to announced results, can't exclude an implementation error
 
 
 class Solver(BaseSolver):
     name = "fastpca"
 
-    parameters = {"step_size": [1, 0.7, 1e-2, 1e-3], "size": [10, 20, 40], "proj": [True, False]}
+    parameters = {
+        "step_size": [1, 0.7, 1e-2, 1e-3],
+        "size": [10, 20, 40],
+        "proj": [True, False]
+    }
 
     requirements = ["scipy"]
 
@@ -49,15 +54,16 @@ class Solver(BaseSolver):
 
         # Each "rank" gets its own data slice and variables
         Xs = np.stack(
-            [full_data[perm][n * i : n * (i + 1)].T for i in range(size)]
+            [full_data[perm][n * i: n * (i + 1)].T for i in range(size)]
         )  # shape: (size, d, n)
         d, n = Xs.shape[1], Xs.shape[2]
 
         # Initialization
         Cs = np.matmul(Xs, np.transpose(Xs, (0, 2, 1)))  # (size, d, d)
-        Ws = np.stack(
-            [stiefel.uniform(d, k, random_seed=self.random_seed) for _ in range(size)]
-        )  # (size, d, k)
+        Ws = np.stack([
+            stiefel.uniform(d, k, random_seed=self.random_seed)
+            for _ in range(size)
+        ])  # (size, d, k)
         ss = np.zeros_like(Ws)
         hs = np.zeros_like(Ws)
         for i in range(size):

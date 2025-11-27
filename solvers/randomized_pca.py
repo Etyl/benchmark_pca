@@ -2,10 +2,14 @@ from sklearn.utils.extmath import randomized_svd
 
 from benchopt import BaseSolver
 
+
 class Solver(BaseSolver):
     name = "randomized-pca"
 
-    parameters = {"n_oversamples": [10], "n_iter": [0, 4, 7]}
+    parameters = {
+        "n_oversamples": [10],
+        "n_iter": [0, 4, 7]
+    }
 
     requirements = ["scikit-learn"]
 

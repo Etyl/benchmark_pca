@@ -5,6 +5,7 @@ from benchopt import BaseSolver
 from benchopt.stopping_criterion import SufficientProgressCriterion
 from benchmark_utils import constants, stiefel
 
+
 # Pseudo-code from https://proceedings.mlr.press/v48/shamira16.pdf
 class Solver(BaseSolver):
     name = "vrpca"
@@ -31,7 +32,7 @@ class Solver(BaseSolver):
         n, d = self.X.shape
         k = self.n_components
         epoch_size = int(n * self.epoch_fraction // self.batch_size)
-        assert epoch_size > 0, "epoch_fraction is too small compared to batch_size"
+        assert epoch_size > 0, "epoch_fraction is too small"
 
         X = self.X.T
 
@@ -48,11 +49,14 @@ class Solver(BaseSolver):
                 U_tilde = X @ (X.T @ W_tilde) / n
 
             indices = generator.integers(0, n, self.batch_size)
-            U, _, Vh = np.linalg.svd(W.T @ W_tilde, full_matrices=False, compute_uv=True)
+            U, _, Vh = np.linalg.svd(
+                W.T @ W_tilde, full_matrices=False, compute_uv=True
+            )
             B = Vh.T @ U.T
             Xb = self.X[indices].T
             W_prime = W + self.step_size * (
-                Xb @ (Xb.T @ W - Xb.T @ (W_tilde @ B)) / self.batch_size + U_tilde @ B
+                Xb @ (Xb.T @ W - Xb.T @ (W_tilde @ B)) / self.batch_size +
+                U_tilde @ B
             )
             W = W_prime @ linalg.inv_squared_root(W_prime.T @ W_prime)
             self.components = W

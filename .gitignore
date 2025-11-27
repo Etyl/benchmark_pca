@@ -1,3 +1,7 @@
+.conda
+.env
+.venv
+
 # Cache directories
 .pytest_cache
 __pycache__
@@ -22,6 +26,6 @@ benchopt.yml
 # Notebooks
 *.ipynb
 
-# Output files 
+# Output files
 *.pdf
 *.png

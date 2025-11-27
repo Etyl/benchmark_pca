@@ -7,7 +7,10 @@ from benchmark_utils.data import DiskDataset
 
 # Base URL and filenames for MNIST data
 BASE_URL = "https://storage.googleapis.com/cvdf-datasets/mnist/"
-FILES = {"train_images": "train-images-idx3-ubyte.gz", "test_images": "t10k-images-idx3-ubyte.gz"}
+FILES = {
+    "train_images": "train-images-idx3-ubyte.gz",
+    "test_images": "t10k-images-idx3-ubyte.gz"
+}
 
 
 def download_mnist_to_disk(base_path):
@@ -33,8 +36,12 @@ def extract_images_from_file(filepath):
 
 def get_mnist_on_disk(base_path):
     raw_path = download_mnist_to_disk(base_path)
-    train_images = extract_images_from_file(os.path.join(raw_path, FILES["train_images"]))
-    test_images = extract_images_from_file(os.path.join(raw_path, FILES["test_images"]))
+    train_images = extract_images_from_file(
+        os.path.join(raw_path, FILES["train_images"])
+    )
+    test_images = extract_images_from_file(
+        os.path.join(raw_path, FILES["test_images"])
+    )
     all_images = np.vstack([train_images, test_images])
     return all_images
 
@@ -55,8 +62,8 @@ class Dataset(DiskDataset):
             num_images = int.from_bytes(f.read(4), "big")
             rows = int.from_bytes(f.read(4), "big")
             cols = int.from_bytes(f.read(4), "big")
-            data = np.frombuffer(f.read(), dtype=np.uint8)
-            return data.reshape(num_images, rows * cols).astype("float32") / 255.0
+            data = np.frombuffer(f.read(), dtype=np.uint8) / 255.0
+            return data.reshape(num_images, rows * cols).astype("float32")
 
     def preprocess_and_save(self, raw_data_dir, data_dir):
         train_images = self.extract_images_from_file(
