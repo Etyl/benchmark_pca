@@ -3,6 +3,8 @@ import numpy as np
 from benchopt import BaseSolver, safe_import_context
 from benchopt.stopping_criterion import SufficientProgressCriterion
 
+from benchmark_utils.all_reduce import worker_oja_step
+
 with safe_import_context() as import_ctx:
     from dask_jobqueue import SLURMCluster
     from dask.distributed import Client, wait
@@ -10,34 +12,16 @@ with safe_import_context() as import_ctx:
     from benchmark_utils import stiefel
 
 
-# Define the worker function at module level for pickling
-def worker_oja_step(X_block, W, batch_size, seed):
-    """
-    Computes a local gradient estimate on a mini-batch of the data block.
-    """
-    n_local, d = X_block.shape
-    rng = np.random.default_rng(seed)
-
-    # Sample mini-batch from the local data block
-    indices = rng.integers(0, n_local, batch_size)
-    X_b = X_block[indices].T  # (d, batch_size)
-
-    # Oja's gradient approximation
-    # G = X_b @ (X_b.T @ W)
-    G = X_b @ (X_b.T @ W) / batch_size
-    return G
-
-
 class Solver(BaseSolver):
-    name = "All-Reduce Oja's Method"
+    name = "all-reduce"
 
     parameters = {
         "n_workers": [2, 4],
         "step_size": [1e-2],
-        "batch_size": [32],
+        "batch_size": [10],
         # SLURM generic configuration (adjust queues/time as needed)
-        "cores_per_worker": [1],
-        "memory_per_worker": ["2GB"],
+        "cores_per_worker": [6],
+        "memory_per_worker": ["4GB"],
         "walltime": ["00:30:00"]
     }
 
@@ -91,13 +75,16 @@ class Solver(BaseSolver):
                 # 4. Distributed Computation
                 # Map the worker function to the distributed data chunks
                 # We pass a changing seed to ensure different batches are sampled
-                futures = client.map(
-                    worker_oja_step,
-                    remote_X,
-                    W=W,
-                    batch_size=self.batch_size,
-                    seed=self.random_seed + iteration
-                )
+                futures = [
+                    client.submit(
+                        worker_oja_step,
+                        X_block=x_chunk,
+                        W=W,
+                        batch_size=self.batch_size,
+                        seed=self.random_seed + iteration
+                    )
+                    for x_chunk in remote_X
+                ]
 
                 # 5. Aggregation (AllReduce equivalent)
                 # Gather gradients back to the driver (Parameter Server)
