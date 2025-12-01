@@ -13,7 +13,7 @@ class Solver(BaseSolver):
 
     parameters = {
         "step_size": [1e-2, 1e-3],
-        "batch_size": [1, 10],
+        "batch_size": [10],
     }
 
     requirements = ["scipy"]
