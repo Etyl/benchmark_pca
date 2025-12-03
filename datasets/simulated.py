@@ -1,4 +1,6 @@
 import numpy as np
+import tempfile
+import os
 
 from benchopt.benchmark import get_running_benchmark
 from benchmark_utils.data import BaseDataset
@@ -17,7 +19,12 @@ def generate_data(n, d, rank, decay_function, decay_alpha, random_seed):
         raise ValueError(f"Unknown decay function {decay_function}")
     V = uniform(n, rank, random_seed + 1)
     X = W @ np.diag(S) @ V.T
-    return X, W
+
+    tmp_dir = tempfile.mkdtemp(prefix="benchopt_simulated_")
+    X_path = os.path.join(tmp_dir, "X.npy")
+    np.save(X_path, X)
+
+    return X_path, W
 
 
 class Dataset(BaseDataset):
@@ -29,10 +36,10 @@ class Dataset(BaseDataset):
     name = "simulated"
 
     parameters = {
-        "n": [100, 1000],
-        "d": [100, 1000],
-        "rank": [10],
-        "decay_function": ["linear", "sqrt", "exp"],
+        "n": [8000],
+        "d": [30000],
+        "rank": [30],
+        "decay_function": ["sqrt"],
         "decay_alpha": [1],
         "random_seed": [14],
     }
@@ -47,7 +54,7 @@ class Dataset(BaseDataset):
                 "with a running benchmark."
             )
         generate_function = benchmark.cache(generate_data)
-        X, W = generate_function(
+        X_path, W = generate_function(
             n=self.n,
             d=self.d,
             rank=self.rank,
@@ -55,4 +62,9 @@ class Dataset(BaseDataset):
             decay_alpha=self.decay_alpha,
             random_seed=self.random_seed,
         )
-        return dict(X=X.T, W=W)
+        return dict(
+            n=self.n,
+            d=self.d,
+            X_path=X_path,
+            W=W
+        )

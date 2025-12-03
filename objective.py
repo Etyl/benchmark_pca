@@ -7,38 +7,53 @@ with safe_import_context() as import_ctx:
 class Objective(BaseObjective):
     name = "pca"
 
-    parameters = {"n_components": [2, 12, 24]}
+    parameters = {"n_components": [20]}
 
     requirements = ["numpy"]
 
     min_benchopt_version = "1.5"  # To check
 
-    def set_data(self, X, W=None):
-        self.X = X
-        self.X_norm = np.linalg.norm(X, "fro")
+    def set_data(self, n, d, X_path, W=None):
+        self.n = n
+        self.d = d
+        self.X_path = X_path
         if W is not None:
             self.W = W
 
     def evaluate_result(self, components):
         if (
-            components.shape[0] != self.X.shape[1] or
+            components.shape[0] != self.n or
             components.shape[1] != self.n_components
         ):
             raise ValueError(
                 f"components should be of shape "
-                f"({self.X.shape[1]},{self.n_components}), "
+                f"({self.n},{self.n_components}), "
                 f"current shape {components.shape}"
             )
         ortho_diagnostic = np.max(
             np.abs(components.T @ components - np.eye(self.n_components))
         ).flatten()
-        unexplained_var = 1 - (
-            (np.linalg.norm(self.X @ components, "fro") / self.X_norm) ** 2
-        )
+
+        X = np.load(self.X_path, mmap_mode="r")
+
+        x_norm = 0
+        xc_norm = 0
+        for i in range(self.n):
+            x = X[i, :]
+            x_norm += np.sum(x**2)
+            xc_norm += np.sum((x[None, :] @ components)**2)
+
+        unexplained_var = 1 - xc_norm / x_norm
+
         return dict(value=unexplained_var, ortho_diagnostic=ortho_diagnostic)
 
     def get_one_result(self):
-        return dict(components=np.zeros((self.X.shape[1], self.n_components)))
+        return dict(components=np.zeros((self.n, self.n_components)))
 
     def get_objective(self):
-        return dict(X=self.X, n_components=self.n_components)
+        return dict(
+            n=self.n,
+            d=self.d,
+            X_path=self.X_path,
+            n_components=self.n_components
+        )

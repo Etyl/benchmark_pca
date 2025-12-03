@@ -1,0 +1,9 @@
+solver:
+  - all-reduce
+  - adaoja
+dataset:
+  - simulated
+
+n_repetitions: 4
+# max-runs: 200
+# timeout: 14400

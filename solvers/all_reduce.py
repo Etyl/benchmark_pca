@@ -1,107 +1,179 @@
+import os
+import time
+import json
+import uuid  # Added for unique temp filenames
+import sys   # Added for flushing stdout
 import numpy as np
-
-from benchopt import BaseSolver, safe_import_context
+from numpy.lib.format import open_memmap
+from benchopt import safe_import_context
 from benchopt.stopping_criterion import SufficientProgressCriterion
 
-from benchmark_utils.all_reduce import worker_oja_step
+from benchmark_utils.mpi_solver import DistributedMPISolver
 
 with safe_import_context() as import_ctx:
-    from dask_jobqueue import SLURMCluster
-    from dask.distributed import Client, wait
-    import dask.array as da
-    from benchmark_utils import stiefel
+    import torch
+    from mpi4py import MPI
 
 
-class Solver(BaseSolver):
+class Solver(DistributedMPISolver):
     name = "all-reduce"
 
     parameters = {
-        "step_size": [1e-2],
-        "batch_size": [10],
         "n_workers": [4],
-        # SLURM generic configuration (adjust queues/time as needed)
-        "cores_per_worker": [6],
-        "memory_per_worker": ["6GB"],
-        "walltime": ["00:30:00"]
+        "batch_size": [32],
+        "b0": [1e-5],
     }
 
-    requirements = ["numpy", "dask", "dask_jobqueue", "distributed"]
+    requirements = ["numpy", "torch", "mpi4py"]
 
     stopping_criterion = SufficientProgressCriterion(
-        eps=1e-10, patience=3, strategy="callback"
+        eps=1e-10, patience=3, strategy="iteration"
     )
 
-    def set_objective(self, X, n_components):
-        self.X = X
-        self.n_components = n_components
+    # Note: set_objective is inherited from DistributedMPISolver
+    # It now includes the --overlap flag automatically.
 
-        # 1. Setup SLURM Cluster (Moved to set_objective to exclude from timing)
-        self.cluster = SLURMCluster(
-            cores=self.cores_per_worker,
-            memory=self.memory_per_worker,
-            walltime=self.walltime,
-            processes=1,  # 1 worker per job
-        )
+    @classmethod
+    def worker(cls, args):
+        # --- 1. Init Environment & MPI ---
+        # Prevent Thread Oversubscription
+        slurm_cpus = os.environ.get("SLURM_CPUS_PER_TASK", None)
+        if slurm_cpus:
+            torch.set_num_threads(int(slurm_cpus))
+        else:
+            torch.set_num_threads(4)  # Fallback
 
-        self.cluster.scale(jobs=self.n_workers)
-        self.client = Client(self.cluster)
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+        world_size = comm.Get_size()
 
-        # Wait for workers to come online
-        print("Waiting for workers...")
-        self.client.wait_for_workers(n_workers=self.n_workers)
+        # FIX: Robust Rank Detection
+        # In some SLURM environments (especially with srun --overlap), mpi4py might
+        # fail to bootstrap correctly and default to rank=0, world_size=1 for all tasks.
+        if "SLURM_PROCID" in os.environ:
+            rank = int(os.environ["SLURM_PROCID"])
+        if "SLURM_NTASKS" in os.environ:
+            world_size = int(os.environ["SLURM_NTASKS"])
 
-        # 2. Distribute Data (Moved to set_objective)
-        # Scatter chunks of X to workers.
-        X_splits = np.array_split(self.X, self.n_workers)
+        # Debug print to verify distinct ranks
+        print(f"Worker initialized: Rank {rank}/{world_size}, PID {os.getpid()}")
+        sys.stdout.flush()
 
-        # remote_X is a list of Futures pointing to data on workers
-        self.remote_X = self.client.scatter(X_splits)
-        print("Data distributed to workers.")
+        # Paths for coordination
+        control_file = os.path.join(args.tmp_dir, "control.json")
+        status_file = os.path.join(args.tmp_dir, "status_rank_0.txt")
+        out_path = os.path.join(args.tmp_dir, "results.npy")
 
-    def run(self, callback):
-        # 3. Initialization
-        n, d = self.X.shape
-        k = self.n_components
+        # --- 2. Load Data (Done ONCE) ---
+        X_mmap = open_memmap(args.data_path, mode='c')
+        n_samples, n_features = X_mmap.shape
 
-        self.random_seed = callback.meta["idx_rep"]
-        W = stiefel.uniform(d, k, self.random_seed)
-        self.components = W
+        chunk_size = n_samples // world_size
+        start = rank * chunk_size
+        end = start + chunk_size if rank != world_size - 1 else n_samples
 
-        iteration = 0
+        # Load slice into RAM
+        X_local = torch.from_numpy(X_mmap[start:end]).float()
 
-        try:
-            while callback():
-                # 4. Distributed Computation
-                # Map the worker function to the distributed data chunks
-                futures = [
-                    self.client.submit(
-                        worker_oja_step,
-                        X_block=x_chunk,
-                        W=W,
-                        batch_size=self.batch_size,
-                        seed=self.random_seed + iteration
-                    )
-                    for x_chunk in self.remote_X
-                ]
+        # --- 3. Pre-allocate Buffers ---
+        torch.manual_seed(args.seed)
 
-                # 5. Aggregation (AllReduce equivalent)
-                # Gather gradients back to the driver (Parameter Server)
-                local_grads = self.client.gather(futures)
+        W_init = torch.randn(n_features, args.n_components)
+        W_init, _ = torch.linalg.qr(W_init, mode='reduced')
+        b_init = torch.full((args.n_components,), args.b0)
 
-                # Average the gradients
-                G_global = np.mean(local_grads, axis=0)
+        G_local = torch.zeros(n_features, args.n_components)
+        G_numpy = G_local.numpy()
 
-                # 6. Global Update & Retraction
-                W = W + self.step_size * G_global
-                W, _ = np.linalg.qr(W, mode="reduced")
+        # --- 4. Signal Ready ---
+        comm.Barrier()
+        if rank == 0:
+            with open(status_file, "w") as f:
+                f.write("READY")
 
-                self.components = W
-                iteration += 1
+        # --- 5. Event Loop ---
+        last_known_cmd = "IDLE"
 
-        finally:
-            # Cleanup SLURM jobs at the end of the run
-            self.client.close()
-            self.cluster.close()
+        while True:
+            # Poll control file
+            try:
+                if os.path.exists(control_file):
+                    with open(control_file, "r") as f:
+                        data = json.load(f)
+                    cmd = data.get("command", "IDLE")
+                    n_iter = data.get("n_iter", 0)
+                else:
+                    cmd = "IDLE"
+            except (json.JSONDecodeError, FileNotFoundError, ValueError):
+                cmd = last_known_cmd
 
-    def get_result(self):
-        return dict(components=self.components)
+            # --- STATE MACHINE ---
+
+            # A. EXIT
+            if cmd == "EXIT":
+                break
+
+            # B. IDLE
+            if cmd == "IDLE":
+                if last_known_cmd == "RUN":
+                    comm.Barrier()
+                    if rank == 0:
+                        with open(status_file, "w") as f:
+                            f.write("READY")
+                last_known_cmd = "IDLE"
+                time.sleep(0.01)
+                continue
+
+            # C. RUN (Trigger Optimization)
+            if cmd == "RUN" and last_known_cmd != "RUN":
+                last_known_cmd = "RUN"
+
+                W_curr = W_init.clone()
+                b_curr = b_init.clone()
+
+                # --- OPTIMIZATION LOOP ---
+                for i in range(n_iter):
+                    curr_seed = args.seed + i
+                    torch.manual_seed(curr_seed)
+
+                    indices = torch.randint(0, len(X_local), (args.batch_size,))
+                    X_batch = X_local[indices]
+
+                    torch.matmul(X_batch.T, X_batch @ W_curr, out=G_local)
+
+                    comm.Allreduce(MPI.IN_PLACE, G_numpy, op=MPI.SUM)
+
+                    G_local /= world_size
+                    grad_norm_sq = torch.linalg.norm(G_local, dim=0)**2
+                    b_curr = torch.sqrt(b_curr**2 + grad_norm_sq)
+
+                    W_curr.addcdiv_(G_local, b_curr.unsqueeze(0), value=1.0)
+                    W_curr, _ = torch.linalg.qr(W_curr, mode='reduced')
+
+                # --- FINISH ---
+                if rank == 0:
+                    # FIX: Use unique temp file to prevent race conditions during rename
+                    # if multiple workers incorrectly think they are rank 0.
+                    tmp_out_path = f"{out_path}.tmp.{uuid.uuid4().hex}"
+
+                    with open(tmp_out_path, "wb") as f:
+                        np.save(f, W_curr.numpy())
+                        f.flush()
+                        os.fsync(f.fileno()) # Ensure write to disk
+
+                    # Atomic replacement
+                    os.rename(tmp_out_path, out_path)
+
+                    with open(status_file, "w") as f:
+                        f.write("DONE")
+
+                comm.Barrier()
+
+            time.sleep(0.005)
+
+        if rank == 0:
+            print("Worker 0: Received EXIT signal. Shutting down.")
+
+
+if __name__ == "__main__":
+    Solver.entry_point()

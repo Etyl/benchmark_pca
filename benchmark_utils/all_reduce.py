@@ -1,10 +1,7 @@
 import numpy as np
 
+
 def worker_oja_step(X_block, W, batch_size, seed):
-    """
-    Computes a local gradient estimate on a mini-batch of the data block.
-    This function is defined here to ensure it is pickleable/hashable by Dask.
-    """
     n_local, d = X_block.shape
     rng = np.random.default_rng(seed)
 
@@ -15,3 +12,30 @@ def worker_oja_step(X_block, W, batch_size, seed):
     # Oja's gradient approximation
     G = X_b @ (X_b.T @ W) / batch_size
     return G
+
+
+def worker_weight_step(
+    X_block, W, step_size, batch_size, seed, proj_after_update
+):
+    """
+    Computes a local update step: Gradient -> Update -> Optional Projection.
+    Returns the updated local weight matrix W_local.
+    """
+    n_local, d = X_block.shape
+    rng = np.random.default_rng(seed)
+
+    # Sample mini-batch
+    indices = rng.integers(0, n_local, batch_size)
+    X_b = X_block[indices].T  # (d, batch_size)
+
+    # Calculate Gradient (Oja)
+    G = X_b @ (X_b.T @ W) / batch_size
+
+    # Local Update
+    W_local = W + step_size * G
+
+    # Optional Local Projection
+    if proj_after_update:
+        W_local, _ = np.linalg.qr(W_local, mode="reduced")
+
+    return W_local

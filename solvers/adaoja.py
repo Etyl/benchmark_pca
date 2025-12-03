@@ -13,22 +13,23 @@ class Solver(BaseSolver):
 
     parameters = {
         "b0": [1e-5],
-        "batch_size": [10],
+        "batch_size": [32],
     }
 
     requirements = ["scipy"]
 
     stopping_criterion = SufficientProgressCriterion(
-        eps=constants.EPS, patience=constants.PATIENCE, strategy="callback"
+        eps=1e-10, patience=3, strategy="iteration"
     )
 
-    def set_objective(self, X, n_components):
-        self.X = X
+    def set_objective(self, n, d, X_path, n_components):
+        self.X = np.load(X_path)
         self.n_components = n_components
 
-    def run(self, callback):
-        self.random_seed = callback.meta["idx_rep"]
+    def run(self, n_iter):
+        self.random_seed = np.random.randint(10000)
         generator = np.random.default_rng(self.random_seed)
+
         n, d = self.X.shape
         k = self.n_components
 
@@ -36,7 +37,7 @@ class Solver(BaseSolver):
         self.components = W
         b = np.full(k, self.b0)
 
-        while callback():
+        for _ in range(n_iter):
             indices = generator.integers(0, n, self.batch_size)
             Xb = self.X[indices].T  # minibatch of dim (d, self.batch_size)
             G = (1 / self.batch_size) * Xb @ (Xb.T @ W)
