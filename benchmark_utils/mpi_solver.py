@@ -1,11 +1,11 @@
 import os
 import sys
-import time
 import subprocess
 import argparse
-import tempfile
 import inspect
-import json
+import socket
+import pickle
+import struct
 from benchopt import BaseSolver, safe_import_context
 
 with safe_import_context() as import_ctx:
@@ -14,31 +14,34 @@ with safe_import_context() as import_ctx:
 
 class DistributedMPISolver(BaseSolver):
     """
-    Persistent MPI Solver.
-    Launches workers once in set_objective, then triggers runs via shared files.
+    Persistent MPI Solver using Socket Communication.
+    Launches workers once in set_objective, then triggers runs via TCP sockets.
     """
 
-    tmp_dir = None
     worker_process = None
+    server_socket = None
+    connection = None
 
     def set_objective(self, n, d, X_path, n_components):
         self.X_path = X_path
         self.n_components = n_components
 
-        # 1. Setup Shared Control Directory
-        # We use a temp directory that is shared between the driver and workers
-        self.tmp_dir = tempfile.mkdtemp(prefix="benchopt_mpi_")
-        self.control_file = os.path.join(self.tmp_dir, "control.json")
-        self.status_file = os.path.join(self.tmp_dir, "status_rank_0.txt")
-        self.out_path = os.path.join(self.tmp_dir, "results.npy")
+        # 1. Setup Socket Server
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # Bind to 0.0.0.0 to allow connections from external nodes (if permitted)
+        # Port 0 lets the OS choose a free port.
+        self.server_socket.bind(("0.0.0.0", 0))
+        self.server_socket.listen(1)
 
-        # Initialize control file with IDLE state
-        self._write_control("IDLE", 0)
+        # Get the driver's IP/Hostname and the assigned port
+        driver_host = socket.gethostname()
+        _, driver_port = self.server_socket.getsockname()
 
         # 2. Launch Workers (Non-Blocking)
         child_file_path = inspect.getfile(self.__class__)
 
-        # Construct the SLURM command
+        # Construct the SLURM/MPI command
+        # We pass the driver's host and port to the workers
         cmd = [
             "srun",
             "--overlap",
@@ -46,7 +49,8 @@ class DistributedMPISolver(BaseSolver):
             "python", child_file_path,
             "--worker",
             "--data_path", self.X_path,
-            "--tmp_dir", self.tmp_dir, # Pass temp dir for coordination
+            "--driver_host", str(driver_host),
+            "--driver_port", str(driver_port),
             "--n_components", str(self.n_components),
             "--batch_size", str(self.batch_size),
             "--b0", str(self.b0),
@@ -54,53 +58,47 @@ class DistributedMPISolver(BaseSolver):
         ]
 
         print(f"Driver: Launching persistent MPI cluster on {child_file_path}...")
+        print(f"Driver: Listening on {driver_host}:{driver_port}")
 
-        # Prepare environment: Workers need to find 'benchmark_utils'
         env = os.environ.copy()
         env["PYTHONPATH"] = os.getcwd() + os.pathsep + env.get("PYTHONPATH", "")
 
-        # Launch process in background (Popen instead of run)
         self.worker_process = subprocess.Popen(
             cmd,
-            stdout=sys.stdout, # Stream worker logs to console
+            stdout=sys.stdout,
             stderr=sys.stderr,
             env=env
         )
 
-        # 3. Wait for Workers to be Ready
-        print("Driver: Waiting for workers to initialize...")
+        # 3. Wait for Connection from Rank 0
+        print("Driver: Waiting for worker connection...")
+        self.server_socket.settimeout(60)  # Timeout if workers fail to start
         try:
-            self._wait_for_status("READY")
-        except RuntimeError as e:
-            # If workers fail immediately (e.g., import error), clean up and raise
+            self.connection, addr = self.server_socket.accept()
+            print(f"Driver: Connected to worker at {addr}")
+        except socket.timeout:
             self.cleanup()
-            raise e
-
-        print("Driver: Workers are ready.")
+            raise RuntimeError("Timed out waiting for MPI workers to connect.")
 
     def run(self, n_iter):
         """
-        Trigger the workers to run the optimization loop.
+        Trigger the workers to run the optimization loop via socket.
         """
-        if not self.worker_process or self.worker_process.poll() is not None:
-            raise RuntimeError("MPI Worker process is not running.")
+        if not self.connection:
+            raise RuntimeError("No active connection to workers.")
 
-        # 1. Send RUN command with the number of iterations
-        self._write_control("RUN", n_iter)
+        # 1. Send RUN command
+        msg = {"command": "RUN", "n_iter": n_iter}
+        self._send_msg(self.connection, msg)
 
-        # 2. Wait for completion signal from Rank 0
-        self._wait_for_status("DONE")
+        # 2. Receive Result
+        # This blocks until Rank 0 sends the result back
+        response = self._recv_msg(self.connection)
 
-        # 3. Load Result
-        if os.path.exists(self.out_path):
-            self.components = np.load(self.out_path)
+        if response.get("status") == "DONE":
+            self.components = response.get("components")
         else:
-            raise FileNotFoundError("Workers finished but no output file found.")
-
-        # 4. Reset workers to IDLE for next run
-        # This handshake ensures workers are ready to accept a new command
-        self._write_control("IDLE", 0)
-        self._wait_for_status("READY")
+            raise RuntimeError(f"Unexpected response from worker: {response}")
 
     def get_result(self):
         return dict(components=self.components)
@@ -109,52 +107,53 @@ class DistributedMPISolver(BaseSolver):
         """
         Terminate workers gracefully.
         """
-        # Send EXIT command
-        if self.tmp_dir and os.path.exists(self.tmp_dir):
+        if self.connection:
             try:
-                self._write_control("EXIT", 0)
+                self._send_msg(self.connection, {"command": "EXIT"})
+                self.connection.close()
             except Exception:
                 pass
 
-        # Wait for process to exit
+        if self.server_socket:
+            self.server_socket.close()
+
         if self.worker_process:
             try:
                 self.worker_process.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 self.worker_process.kill()
 
-        import shutil
-        if self.tmp_dir and os.path.exists(self.tmp_dir):
-            shutil.rmtree(self.tmp_dir)
+    # --- Socket Helper Methods ---
 
-    # --- Helper Methods ---
-    def _write_control(self, command, n_iter):
-        """Writes a command to the shared control file atomically."""
-        data = {"command": command, "n_iter": n_iter}
-        tmp_name = self.control_file + ".tmp"
-        with open(tmp_name, "w") as f:
-            json.dump(data, f)
-        # Atomic rename prevents workers from reading partial JSON
-        os.rename(tmp_name, self.control_file)
+    @staticmethod
+    def _send_msg(sock, msg):
+        """Pickles and sends a message with a length header."""
+        data = pickle.dumps(msg)
+        # Prefix each message with a 4-byte big-endian unsigned integer (network byte order)
+        sock.sendall(struct.pack('>I', len(data)) + data)
 
-    def _wait_for_status(self, target_status):
-        """Polls the status file until it matches target."""
-        while True:
-            # Check if status file exists and contains target
-            if os.path.exists(self.status_file):
-                try:
-                    with open(self.status_file, "r") as f:
-                        content = f.read().strip()
-                    if content == target_status:
-                        return
-                except (IOError, ValueError):
-                    pass # Retry on read error
+    @staticmethod
+    def _recv_msg(sock):
+        """Receives a length header and then the pickled message."""
+        # Read message length
+        raw_msglen = DistributedMPISolver._recvall(sock, 4)
+        if not raw_msglen:
+            return None
+        msglen = struct.unpack('>I', raw_msglen)[0]
+        # Read the message data
+        data = DistributedMPISolver._recvall(sock, msglen)
+        return pickle.loads(data)
 
-            # Check if subprocess died unexpectedly
-            if self.worker_process.poll() is not None:
-                raise RuntimeError("MPI Workers died unexpectedly during wait.")
-
-            time.sleep(0.01)
+    @staticmethod
+    def _recvall(sock, n):
+        """Helper function to recv n bytes or return None if EOF is hit"""
+        data = bytearray()
+        while len(data) < n:
+            packet = sock.recv(n - len(data))
+            if not packet:
+                return None
+            data.extend(packet)
+        return data
 
     @classmethod
     def worker(cls, args):
@@ -165,7 +164,10 @@ class DistributedMPISolver(BaseSolver):
         parser = argparse.ArgumentParser()
         parser.add_argument("--worker", action="store_true")
         parser.add_argument("--data_path", type=str)
-        parser.add_argument("--tmp_dir", type=str)
+        # New args for socket connection
+        parser.add_argument("--driver_host", type=str)
+        parser.add_argument("--driver_port", type=int)
+
         parser.add_argument("--n_components", type=int)
         parser.add_argument("--batch_size", type=int)
         parser.add_argument("--b0", type=float)

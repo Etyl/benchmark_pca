@@ -53,8 +53,7 @@ class Dataset(BaseDataset):
                 "This dataset can only be instantiated "
                 "with a running benchmark."
             )
-        generate_function = benchmark.cache(generate_data)
-        X_path, W = generate_function(
+        X_path, W = generate_data(
             n=self.n,
             d=self.d,
             rank=self.rank,
