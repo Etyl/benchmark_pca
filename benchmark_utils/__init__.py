@@ -5,6 +5,8 @@
 
 import numpy as np
 
+ACTIVE_SOLVERS = []
+
 
 def gradient_ols(X, y, beta):
     return X.T @ (X @ beta - y)

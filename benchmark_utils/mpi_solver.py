@@ -8,6 +8,7 @@ import pickle
 import struct
 import atexit
 from benchopt import BaseSolver
+from benchmark_utils import ACTIVE_SOLVERS
 
 
 class DistributedMPISolver(BaseSolver):
@@ -38,9 +39,11 @@ class DistributedMPISolver(BaseSolver):
         Launch the workers and run one iteration to warm up the system.
         """
         # Ensure any previous workers are cleaned up
-        self.cleanup()
+        for solver in ACTIVE_SOLVERS:
+            solver.cleanup()
+        ACTIVE_SOLVERS.clear()
 
-        # 1. Setup Socket Server
+        # Setup Socket Server
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.bind(("0.0.0.0", 0))
         self.server_socket.listen(1)
@@ -48,7 +51,7 @@ class DistributedMPISolver(BaseSolver):
         driver_host = socket.gethostname()
         _, driver_port = self.server_socket.getsockname()
 
-        # 2. Launch Workers (Non-Blocking)
+        # Launch Workers (Non-Blocking)
         child_file_path = inspect.getfile(self.__class__)
         cmd = [
             "srun",
@@ -79,8 +82,13 @@ class DistributedMPISolver(BaseSolver):
             env=env
         )
 
-        # 3. Wait for Connection from Rank 0
-        print(f"Driver: Listening on {driver_host}:{driver_port}.")
+        print(
+            f"[{self.name}] Launching worker on {driver_host}:{driver_port}..."
+        )
+
+        # Register cleanup to ensure process is killed at exit
+        ACTIVE_SOLVERS.append(self)
+        atexit.register(self.cleanup)
         self.server_socket.settimeout(60)
         try:
             self.connection, addr = self.server_socket.accept()
@@ -97,11 +105,11 @@ class DistributedMPISolver(BaseSolver):
                 "No active connection to workers. Please call warm_up() first."
             )
 
-        # 1. Send RUN command
+        # Send RUN command
         msg = {"command": "RUN", "n_iter": n_iter}
         self._send_msg(self.connection, msg)
 
-        # 2. Wait for Result
+        # Wait for Result
         response = self._recv_msg(self.connection)
 
         if response and response.get("status") == "DONE":
@@ -117,7 +125,12 @@ class DistributedMPISolver(BaseSolver):
 
     def cleanup(self):
         """Terminate worker and close sockets."""
-        # 1. Send EXIT command to workers
+        # Unregister from shared state and atexit
+        if self in ACTIVE_SOLVERS:
+            ACTIVE_SOLVERS.remove(self)
+        atexit.unregister(self.cleanup)
+
+        # Send EXIT command to workers
         if getattr(self, 'connection', None):
             try:
                 self._send_msg(self.connection, {"command": "EXIT"})
@@ -126,7 +139,7 @@ class DistributedMPISolver(BaseSolver):
                 pass
             self.connection = None
 
-        # 2. Close Server Socket
+        # Close Server Socket
         if getattr(self, 'server_socket', None):
             try:
                 self.server_socket.close()
@@ -134,7 +147,7 @@ class DistributedMPISolver(BaseSolver):
                 pass
             self.server_socket = None
 
-        # 3. Kill Process
+        # Kill Process
         if getattr(self, 'worker_process', None):
             try:
                 self.worker_process.wait(timeout=2)

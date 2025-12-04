@@ -10,6 +10,7 @@ import struct
 import atexit
 import numpy as np
 from benchopt import BaseSolver
+from benchmark_utils import ACTIVE_SOLVERS
 
 
 class SingleNodeSolver(BaseSolver):
@@ -24,8 +25,7 @@ class SingleNodeSolver(BaseSolver):
         self.worker_process = None
         self.server_socket = None
         self.connection = None
-        # Ensure workers are killed if the script exits abruptly
-        atexit.register(self.cleanup)
+        # Note: atexit registration is now handled in warm_up
 
     def __del__(self):
         # Ensure cleanup is called when the solver object is destroyed
@@ -43,9 +43,11 @@ class SingleNodeSolver(BaseSolver):
         Launch the worker and run one iteration to warm up the system.
         """
         # Ensure any previous workers are cleaned up
-        self.cleanup()
+        for solver in ACTIVE_SOLVERS:
+            solver.cleanup()
+        ACTIVE_SOLVERS.clear()
 
-        # 1. Setup Socket Server
+        # Setup Socket Server
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.bind(("0.0.0.0", 0))
         self.server_socket.listen(1)
@@ -53,7 +55,7 @@ class SingleNodeSolver(BaseSolver):
         driver_host = socket.gethostname()
         _, driver_port = self.server_socket.getsockname()
 
-        # 2. Identify script and build srun command
+        # Identify script and build srun command
         script_path = inspect.getfile(self.__class__)
 
         # Unique ID for this solver instance
@@ -88,7 +90,7 @@ class SingleNodeSolver(BaseSolver):
         pythonpath = os.getcwd() + os.pathsep + env.get("PYTHONPATH", "")
         env["PYTHONPATH"] = pythonpath
 
-        # 3. Launch Worker (Non-Blocking)
+        # Launch Worker
         self.worker_process = subprocess.Popen(
             cmd,
             stdout=sys.stdout,
@@ -96,8 +98,10 @@ class SingleNodeSolver(BaseSolver):
             env=env
         )
 
-        # 4. Wait for Connection
-        self.server_socket.settimeout(120)
+        # Register cleanup to ensure process is killed at exit
+        ACTIVE_SOLVERS.append(self)
+        atexit.register(self.cleanup)
+        self.server_socket.settimeout(60)
         try:
             self.connection, addr = self.server_socket.accept()
             print(f"[{self.name}] Worker connected from {addr}")
@@ -134,6 +138,11 @@ class SingleNodeSolver(BaseSolver):
 
     def cleanup(self):
         """Terminate worker and close sockets."""
+        # Unregister from shared state and atexit
+        if self in ACTIVE_SOLVERS:
+            ACTIVE_SOLVERS.remove(self)
+        atexit.unregister(self.cleanup)
+
         # 1. Send EXIT command to workers
         if getattr(self, 'connection', None):
             try:
