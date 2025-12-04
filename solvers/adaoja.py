@@ -14,7 +14,7 @@ class Solver(SingleNodeSolver):
 
     parameters = {
         "b0": [1e-5],
-        "batch_size": [512],
+        "batch_size": [128],
     }
 
     stopping_criterion = SufficientProgressCriterion(
@@ -30,17 +30,12 @@ class Solver(SingleNodeSolver):
         n, d = X.shape
         k = args.n_components
 
-        # Random Initialization
-        # A new seed is generated for each run to match benchopt's repetition behavior
-        random_seed = np.random.randint(10000)
-        generator = np.random.default_rng(random_seed)
-
-        W = stiefel.uniform(d, k, random_seed)
+        W = stiefel.uniform(d, k)
         b = np.full(k, args.b0)
 
         # Optimization Loop
         for _ in range(args.n_iter):
-            indices = generator.integers(0, n, args.batch_size)
+            indices = np.random.randint(0, n, args.batch_size)
             Xb = X[indices].T  # minibatch (d, batch_size)
 
             G = (1 / args.batch_size) * Xb @ (Xb.T @ W)

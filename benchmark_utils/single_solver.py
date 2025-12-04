@@ -75,10 +75,14 @@ class SingleNodeSolver(BaseSolver):
             param_value = getattr(self, param_name)
             cmd.extend([f"--{param_name}", str(param_value)])
 
-        print(f"[{self.name}] Launching worker {worker_id} on {driver_host}:{driver_port}...")
+        print(
+            f"[{self.name}] Launching worker {worker_id} on "
+            f"{driver_host}:{driver_port}..."
+        )
 
         env = os.environ.copy()
-        env["PYTHONPATH"] = os.getcwd() + os.pathsep + env.get("PYTHONPATH", "")
+        pythonpath = os.getcwd() + os.pathsep + env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = pythonpath
 
         # 3. Launch Worker (Non-Blocking)
         self.worker_process = subprocess.Popen(
@@ -94,12 +98,15 @@ class SingleNodeSolver(BaseSolver):
             self.connection, addr = self.server_socket.accept()
             print(f"[{self.name}] Worker connected from {addr}")
         except socket.timeout:
-            raise RuntimeError("Timed out waiting for SLURM worker to connect.")
+            raise RuntimeError(
+                "Timed out waiting for SLURM worker to connect."
+            )
 
     def run(self, n_iter):
-        # If no connection (e.g. wiped by previous get_result or no warm_up), launch now.
         if not self.connection:
-            raise RuntimeError("No active connection to workers. Please call warm_up() first.")
+            raise RuntimeError(
+                "No active connection to workers. Please call warm_up() first."
+            )
 
         # 1. Send RUN command
         msg = {"command": "RUN", "n_iter": n_iter}
@@ -111,7 +118,9 @@ class SingleNodeSolver(BaseSolver):
         if response and response.get("status") == "DONE":
             self.components = response.get("components")
         else:
-            raise RuntimeError(f"Worker failed or sent invalid response: {response}")
+            raise RuntimeError(
+                f"Worker failed or sent invalid response: {response}"
+            )
 
     def get_result(self):
         # Capture result

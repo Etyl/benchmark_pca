@@ -13,10 +13,9 @@ with safe_import_context() as import_ctx:
 class Solver(DistributedMPISolver):
     name = "all-reduce"
 
-    # batch_size now represents the GLOBAL batch size (e.g., 32)
     parameters = {
         "n_workers": [4, 16],
-        "batch_size": [512],
+        "batch_size": [128],
         "b0": [1e-5],
     }
 
@@ -49,50 +48,22 @@ class Solver(DistributedMPISolver):
         """
         n_features = X_local.shape[1]
 
-        # --- 1. Calculate Local Batch Size ---
-        # We split the global batch_size among workers.
-        # e.g., if global batch_size=32 and 4 workers, local=8.
-        global_batch_size = args.batch_size
-        local_batch_size = global_batch_size // world_size
-        if local_batch_size < 1:
-            local_batch_size = 1
-            if rank == 0:
-                print(
-                    f"Warning: batch_size {global_batch_size} "
-                    f"< n_workers {world_size}. Using local_batch_size=1."
-                )
-
         # Re-init weights for every run
-        W = stiefel.uniform(
-            n_features, args.n_components,
-            random_seed=rank
-        )
+        W = stiefel.uniform(n_features, args.n_components)
         b = np.full((args.n_components,), args.b0)
 
         G_local = np.zeros((n_features, args.n_components))
 
-        # Optimization Loop
-        for i in range(n_iter):
-
-            # Sample local mini-batch
-            indices = np.random.randint(0, len(X_local), (local_batch_size,))
+        for _ in range(n_iter):
+            indices = np.random.randint(0, len(X_local), (args.batch_size,))
             X_batch = X_local[indices]
-
-            # Compute Sum of Gradients on local batch
-            # G = sum(x * x^T * W)
             np.matmul(X_batch.T, X_batch @ W, out=G_local)
 
             # Sum gradients across all workers
-            # Result in G is sum over GLOBAL batch
             comm.Allreduce(MPI.IN_PLACE, G_local, op=MPI.SUM)
-
-            # --- 2. Scale by Global Batch Size ---
-            # Compute the Mean Gradient: Sum / Global_Count
-            # This matches adaoja: G = (1/B) * sum(grads)
-            G_local /= global_batch_size
+            G_local /= args.batch_size
 
             b = np.sqrt(b**2 + np.linalg.vector_norm(G_local, axis=0) ** 2)
-
             W += G_local / b[None, :]
             W, _ = np.linalg.qr(W, mode='reduced')
 

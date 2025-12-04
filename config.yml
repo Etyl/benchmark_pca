@@ -4,6 +4,6 @@ solver:
 dataset:
   - simulated
 
-n_repetitions: 1
+n_repetitions: 3
 # max-runs: 200
-timeout: 300
+timeout: 400

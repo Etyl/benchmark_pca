@@ -65,10 +65,11 @@ class DistributedMPISolver(BaseSolver):
             "--seed", str(42)
         ]
 
-        print(f"Driver: Launching persistent MPI cluster on {child_file_path}...")
+        print(f"Driver: Launching persistent MPI cluster on {child_file_path}")
 
         env = os.environ.copy()
-        env["PYTHONPATH"] = os.getcwd() + os.pathsep + env.get("PYTHONPATH", "")
+        pythonpath = os.getcwd() + os.pathsep + env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = pythonpath
 
         self.worker_process = subprocess.Popen(
             cmd,
@@ -78,7 +79,7 @@ class DistributedMPISolver(BaseSolver):
         )
 
         # 3. Wait for Connection from Rank 0
-        print(f"Driver: Listening on {driver_host}:{driver_port}. Waiting for workers...")
+        print(f"Driver: Listening on {driver_host}:{driver_port}.")
         self.server_socket.settimeout(60)
         try:
             self.connection, addr = self.server_socket.accept()
@@ -87,10 +88,13 @@ class DistributedMPISolver(BaseSolver):
             self.cleanup()
             raise RuntimeError("Timed out waiting for MPI workers to connect.")
 
+        self.run(1)  # Warm-up run
+
     def run(self, n_iter):
-        # If no connection (e.g. wiped by previous get_result or no warm_up), launch now.
         if not self.connection:
-            raise RuntimeError("No active connection to workers. Please call warm_up() first.")
+            raise RuntimeError(
+                "No active connection to workers. Please call warm_up() first."
+            )
 
         # 1. Send RUN command
         msg = {"command": "RUN", "n_iter": n_iter}
@@ -163,7 +167,10 @@ class DistributedMPISolver(BaseSolver):
         if "SLURM_NTASKS" in os.environ:
             world_size = int(os.environ["SLURM_NTASKS"])
 
-        print(f"Worker initialized: Rank {rank}/{world_size} on {socket.gethostname()}")
+        print(
+            f"Worker initialized: Rank {rank}/{world_size} "
+            f"on {socket.gethostname()}"
+        )
         sys.stdout.flush()
 
         # 2. Solver-Specific Initialization
@@ -206,7 +213,9 @@ class DistributedMPISolver(BaseSolver):
                 n_iter = cmd_data.get("n_iter", 0)
 
                 # Execute Solver Logic
-                components = cls.worker_run(n_iter, worker_ctx, args, comm, rank, world_size)
+                components = cls.worker_run(
+                    n_iter, worker_ctx, args, comm, rank, world_size
+                )
 
                 # Send Result (Rank 0)
                 if rank == 0:
@@ -235,7 +244,8 @@ class DistributedMPISolver(BaseSolver):
     def _recv_msg(sock):
         try:
             raw_msglen = DistributedMPISolver._recvall(sock, 4)
-            if not raw_msglen: return None
+            if not raw_msglen:
+                return None
             msglen = struct.unpack('>I', raw_msglen)[0]
             data = DistributedMPISolver._recvall(sock, msglen)
             return pickle.loads(data)
@@ -248,7 +258,8 @@ class DistributedMPISolver(BaseSolver):
         while len(data) < n:
             try:
                 packet = sock.recv(n - len(data))
-                if not packet: return None
+                if not packet:
+                    return None
                 data.extend(packet)
             except OSError:
                 return None
