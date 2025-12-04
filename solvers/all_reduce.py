@@ -1,150 +1,103 @@
-import os
-import sys
-import socket
-import numpy as np
 from numpy.lib.format import open_memmap
 from benchopt import safe_import_context
 from benchopt.stopping_criterion import SufficientProgressCriterion
 
 from benchmark_utils.mpi_solver import DistributedMPISolver
+import benchmark_utils.stiefel as stiefel
 
 with safe_import_context() as import_ctx:
-    import torch
     from mpi4py import MPI
+    import numpy as np
 
 
 class Solver(DistributedMPISolver):
     name = "all-reduce"
 
+    # batch_size now represents the GLOBAL batch size (e.g., 32)
     parameters = {
-        "n_workers": [4],
-        "batch_size": [32],
+        "n_workers": [4, 16],
+        "batch_size": [512],
         "b0": [1e-5],
     }
 
-    requirements = ["numpy", "torch", "mpi4py"]
+    requirements = ["numpy", "mpi4py"]
 
     stopping_criterion = SufficientProgressCriterion(
         eps=1e-10, patience=3, strategy="iteration"
     )
 
     @classmethod
-    def worker(cls, args):
-        # --- 1. Init Environment & MPI ---
-        slurm_cpus = os.environ.get("SLURM_CPUS_PER_TASK", None)
-        if slurm_cpus:
-            torch.set_num_threads(int(slurm_cpus))
-        else:
-            torch.set_num_threads(4)
-
-        comm = MPI.COMM_WORLD
-        rank = comm.Get_rank()
-        world_size = comm.Get_size()
-
-        # Handle SLURM rank detection overlap issues
-        if "SLURM_PROCID" in os.environ:
-            rank = int(os.environ["SLURM_PROCID"])
-        if "SLURM_NTASKS" in os.environ:
-            world_size = int(os.environ["SLURM_NTASKS"])
-
-        # Debug print
-        print(f"Worker initialized: Rank {rank}/{world_size} on {socket.gethostname()}")
-        sys.stdout.flush()
-
-        # --- 2. Load Data ---
+    def init_worker(cls, args, comm, rank, world_size):
+        """
+        Initialize the worker environment and load data.
+        Returns the local data tensor (X_local).
+        """
+        # Load Data Slice
         X_mmap = open_memmap(args.data_path, mode='c')
         n_samples, n_features = X_mmap.shape
+
         chunk_size = n_samples // world_size
         start = rank * chunk_size
         end = start + chunk_size if rank != world_size - 1 else n_samples
-        X_local = torch.from_numpy(X_mmap[start:end]).float()
 
-        # --- 3. Establish Connection (Rank 0 only) ---
-        sock = None
-        if rank == 0:
-            try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.connect((args.driver_host, args.driver_port))
-                print("Worker 0: Connected to Driver.")
-            except Exception as e:
-                print(f"Worker 0: Connection failed: {e}")
-                sys.exit(1)
+        return X_mmap[start:end]
 
-        # --- 4. Event Loop ---
-        while True:
-            cmd_data = None
+    @classmethod
+    def worker_run(cls, n_iter, X_local, args, comm, rank, world_size):
+        """
+        The core optimization logic.
+        """
+        n_features = X_local.shape[1]
 
-            # Rank 0 waits for command from Driver
+        # --- 1. Calculate Local Batch Size ---
+        # We split the global batch_size among workers.
+        # e.g., if global batch_size=32 and 4 workers, local=8.
+        global_batch_size = args.batch_size
+        local_batch_size = global_batch_size // world_size
+        if local_batch_size < 1:
+            local_batch_size = 1
             if rank == 0:
-                try:
-                    cmd_data = DistributedMPISolver._recv_msg(sock)
-                except Exception:
-                    cmd_data = {"command": "EXIT"} # Fallback on error
+                print(
+                    f"Warning: batch_size {global_batch_size} "
+                    f"< n_workers {world_size}. Using local_batch_size=1."
+                )
 
-            # Broadcast command to all workers
-            cmd_data = comm.bcast(cmd_data, root=0)
+        # Re-init weights for every run
+        W = stiefel.uniform(
+            n_features, args.n_components,
+            random_seed=rank
+        )
+        b = np.full((args.n_components,), args.b0)
 
-            if cmd_data is None:
-                break
+        G_local = np.zeros((n_features, args.n_components))
 
-            cmd = cmd_data.get("command")
+        # Optimization Loop
+        for i in range(n_iter):
 
-            # --- A. EXIT ---
-            if cmd == "EXIT":
-                break
+            # Sample local mini-batch
+            indices = np.random.randint(0, len(X_local), (local_batch_size,))
+            X_batch = X_local[indices]
 
-            # --- B. RUN ---
-            if cmd == "RUN":
-                n_iter = cmd_data.get("n_iter", 0)
+            # Compute Sum of Gradients on local batch
+            # G = sum(x * x^T * W)
+            np.matmul(X_batch.T, X_batch @ W, out=G_local)
 
-                # Setup randomness
-                torch.manual_seed(args.seed)
+            # Sum gradients across all workers
+            # Result in G is sum over GLOBAL batch
+            comm.Allreduce(MPI.IN_PLACE, G_local, op=MPI.SUM)
 
-                # Re-init weights for every run (Stateful caching could be added here)
-                # Note: To match previous behavior, we might want to cache W between runs
-                # but currently the driver asks for fresh runs usually.
-                # Assuming fresh start or simple continuation based on benchopt flow.
-                # Here we re-init to be safe as per previous code logic.
+            # --- 2. Scale by Global Batch Size ---
+            # Compute the Mean Gradient: Sum / Global_Count
+            # This matches adaoja: G = (1/B) * sum(grads)
+            G_local /= global_batch_size
 
-                W_curr = torch.randn(n_features, args.n_components)
-                W_curr, _ = torch.linalg.qr(W_curr, mode='reduced')
-                b_curr = torch.full((args.n_components,), args.b0)
+            b = np.sqrt(b**2 + np.linalg.vector_norm(G_local, axis=0) ** 2)
 
-                G_local = torch.zeros(n_features, args.n_components)
-                G_numpy = G_local.numpy()
+            W += G_local / b[None, :]
+            W, _ = np.linalg.qr(W, mode='reduced')
 
-                # Optimization Loop
-                for i in range(n_iter):
-                    curr_seed = args.seed + i
-                    torch.manual_seed(curr_seed)
+        return W
 
-                    indices = torch.randint(0, len(X_local), (args.batch_size,))
-                    X_batch = X_local[indices]
-
-                    torch.matmul(X_batch.T, X_batch @ W_curr, out=G_local)
-                    comm.Allreduce(MPI.IN_PLACE, G_numpy, op=MPI.SUM)
-
-                    G_local /= world_size
-                    grad_norm_sq = torch.linalg.norm(G_local, dim=0)**2
-                    b_curr = torch.sqrt(b_curr**2 + grad_norm_sq)
-
-                    W_curr.addcdiv_(G_local, b_curr.unsqueeze(0), value=1.0)
-                    W_curr, _ = torch.linalg.qr(W_curr, mode='reduced')
-
-                # Send results back (Rank 0 only)
-                if rank == 0:
-                    result = {
-                        "status": "DONE",
-                        "components": W_curr.numpy()
-                    }
-                    DistributedMPISolver._send_msg(sock, result)
-
-            # Wait for all ranks before next command loop
-            comm.Barrier()
-
-        if rank == 0 and sock:
-            sock.close()
-            print("Worker 0: Socket closed.")
 
 if __name__ == "__main__":
     Solver.entry_point()

@@ -6,42 +6,50 @@ import inspect
 import socket
 import pickle
 import struct
-from benchopt import BaseSolver, safe_import_context
-
-with safe_import_context() as import_ctx:
-    import numpy as np
+import atexit
+from benchopt import BaseSolver
 
 
 class DistributedMPISolver(BaseSolver):
     """
     Persistent MPI Solver using Socket Communication.
-    Launches workers once in set_objective, then triggers runs via TCP sockets.
+    Handles the infrastructure (Workers, Sockets, MPI Loop).
     """
 
-    worker_process = None
-    server_socket = None
-    connection = None
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.worker_process = None
+        self.server_socket = None
+        self.connection = None
+        # Ensure workers are killed if the script exits abruptly
+        atexit.register(self.cleanup)
+
+    def __del__(self):
+        # Ensure cleanup is called when the solver object is destroyed
+        self.cleanup()
 
     def set_objective(self, n, d, X_path, n_components):
+        # Store parameters (Launch logic moved to warm_up)
         self.X_path = X_path
         self.n_components = n_components
 
+    def warm_up(self):
+        """
+        Launch the workers and run one iteration to warm up the system.
+        """
+        # Ensure any previous workers are cleaned up
+        self.cleanup()
+
         # 1. Setup Socket Server
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # Bind to 0.0.0.0 to allow connections from external nodes (if permitted)
-        # Port 0 lets the OS choose a free port.
         self.server_socket.bind(("0.0.0.0", 0))
         self.server_socket.listen(1)
 
-        # Get the driver's IP/Hostname and the assigned port
         driver_host = socket.gethostname()
         _, driver_port = self.server_socket.getsockname()
 
         # 2. Launch Workers (Non-Blocking)
         child_file_path = inspect.getfile(self.__class__)
-
-        # Construct the SLURM/MPI command
-        # We pass the driver's host and port to the workers
         cmd = [
             "srun",
             "--overlap",
@@ -58,7 +66,6 @@ class DistributedMPISolver(BaseSolver):
         ]
 
         print(f"Driver: Launching persistent MPI cluster on {child_file_path}...")
-        print(f"Driver: Listening on {driver_host}:{driver_port}")
 
         env = os.environ.copy()
         env["PYTHONPATH"] = os.getcwd() + os.pathsep + env.get("PYTHONPATH", "")
@@ -71,8 +78,8 @@ class DistributedMPISolver(BaseSolver):
         )
 
         # 3. Wait for Connection from Rank 0
-        print("Driver: Waiting for worker connection...")
-        self.server_socket.settimeout(60)  # Timeout if workers fail to start
+        print(f"Driver: Listening on {driver_host}:{driver_port}. Waiting for workers...")
+        self.server_socket.settimeout(60)
         try:
             self.connection, addr = self.server_socket.accept()
             print(f"Driver: Connected to worker at {addr}")
@@ -81,93 +88,179 @@ class DistributedMPISolver(BaseSolver):
             raise RuntimeError("Timed out waiting for MPI workers to connect.")
 
     def run(self, n_iter):
-        """
-        Trigger the workers to run the optimization loop via socket.
-        """
+        # If no connection (e.g. wiped by previous get_result or no warm_up), launch now.
         if not self.connection:
-            raise RuntimeError("No active connection to workers.")
+            raise RuntimeError("No active connection to workers. Please call warm_up() first.")
 
         # 1. Send RUN command
         msg = {"command": "RUN", "n_iter": n_iter}
         self._send_msg(self.connection, msg)
 
-        # 2. Receive Result
-        # This blocks until Rank 0 sends the result back
+        # 2. Wait for Result
         response = self._recv_msg(self.connection)
 
-        if response.get("status") == "DONE":
+        if response and response.get("status") == "DONE":
             self.components = response.get("components")
         else:
             raise RuntimeError(f"Unexpected response from worker: {response}")
 
     def get_result(self):
-        return dict(components=self.components)
+        # Return result
+        res = dict(components=self.components)
+
+        return res
 
     def cleanup(self):
-        """
-        Terminate workers gracefully.
-        """
-        if self.connection:
+        """Terminate worker and close sockets."""
+        # 1. Send EXIT command to workers
+        if getattr(self, 'connection', None):
             try:
                 self._send_msg(self.connection, {"command": "EXIT"})
                 self.connection.close()
             except Exception:
                 pass
+            self.connection = None
 
-        if self.server_socket:
-            self.server_socket.close()
-
-        if self.worker_process:
+        # 2. Close Server Socket
+        if getattr(self, 'server_socket', None):
             try:
-                self.worker_process.wait(timeout=5)
+                self.server_socket.close()
+            except Exception:
+                pass
+            self.server_socket = None
+
+        # 3. Kill Process
+        if getattr(self, 'worker_process', None):
+            try:
+                self.worker_process.wait(timeout=2)
             except subprocess.TimeoutExpired:
                 self.worker_process.kill()
+            self.worker_process = None
 
-    # --- Socket Helper Methods ---
+    # --- Abstract Methods for Concrete Solvers ---
 
-    @staticmethod
-    def _send_msg(sock, msg):
-        """Pickles and sends a message with a length header."""
-        data = pickle.dumps(msg)
-        # Prefix each message with a 4-byte big-endian unsigned integer (network byte order)
-        sock.sendall(struct.pack('>I', len(data)) + data)
+    @classmethod
+    def init_worker(cls, args, comm, rank, world_size):
+        raise NotImplementedError
 
-    @staticmethod
-    def _recv_msg(sock):
-        """Receives a length header and then the pickled message."""
-        # Read message length
-        raw_msglen = DistributedMPISolver._recvall(sock, 4)
-        if not raw_msglen:
-            return None
-        msglen = struct.unpack('>I', raw_msglen)[0]
-        # Read the message data
-        data = DistributedMPISolver._recvall(sock, msglen)
-        return pickle.loads(data)
+    @classmethod
+    def worker_run(cls, n_iter, worker_ctx, args, comm, rank, world_size):
+        raise NotImplementedError
 
-    @staticmethod
-    def _recvall(sock, n):
-        """Helper function to recv n bytes or return None if EOF is hit"""
-        data = bytearray()
-        while len(data) < n:
-            packet = sock.recv(n - len(data))
-            if not packet:
-                return None
-            data.extend(packet)
-        return data
+    # --- Worker Entry Point (Generic) ---
 
     @classmethod
     def worker(cls, args):
-        raise NotImplementedError("Concrete solver must implement 'worker'")
+        from mpi4py import MPI
+
+        # 1. Init Environment & MPI
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+        world_size = comm.Get_size()
+
+        if "SLURM_PROCID" in os.environ:
+            rank = int(os.environ["SLURM_PROCID"])
+        if "SLURM_NTASKS" in os.environ:
+            world_size = int(os.environ["SLURM_NTASKS"])
+
+        print(f"Worker initialized: Rank {rank}/{world_size} on {socket.gethostname()}")
+        sys.stdout.flush()
+
+        # 2. Solver-Specific Initialization
+        worker_ctx = cls.init_worker(args, comm, rank, world_size)
+
+        # 3. Connect to Driver (Rank 0 only)
+        sock = None
+        if rank == 0:
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.connect((args.driver_host, args.driver_port))
+                print("Worker 0: Connected to Driver.")
+            except Exception as e:
+                print(f"Worker 0: Connection failed: {e}")
+                sys.exit(1)
+
+        # 4. Command Loop
+        while True:
+            cmd_data = None
+
+            # Rank 0 receives command
+            if rank == 0:
+                try:
+                    cmd_data = DistributedMPISolver._recv_msg(sock)
+                except Exception:
+                    cmd_data = {"command": "EXIT"}
+
+            # Broadcast to all ranks
+            cmd_data = comm.bcast(cmd_data, root=0)
+
+            if cmd_data is None:
+                break
+
+            cmd = cmd_data.get("command")
+
+            if cmd == "EXIT":
+                break
+
+            if cmd == "RUN":
+                n_iter = cmd_data.get("n_iter", 0)
+
+                # Execute Solver Logic
+                components = cls.worker_run(n_iter, worker_ctx, args, comm, rank, world_size)
+
+                # Send Result (Rank 0)
+                if rank == 0:
+                    result = {
+                        "status": "DONE",
+                        "components": components
+                    }
+                    DistributedMPISolver._send_msg(sock, result)
+
+            comm.Barrier()
+
+        if rank == 0 and sock:
+            sock.close()
+
+    # --- Socket Helpers ---
+
+    @staticmethod
+    def _send_msg(sock, msg):
+        try:
+            data = pickle.dumps(msg)
+            sock.sendall(struct.pack('>I', len(data)) + data)
+        except (OSError, BrokenPipeError):
+            pass
+
+    @staticmethod
+    def _recv_msg(sock):
+        try:
+            raw_msglen = DistributedMPISolver._recvall(sock, 4)
+            if not raw_msglen: return None
+            msglen = struct.unpack('>I', raw_msglen)[0]
+            data = DistributedMPISolver._recvall(sock, msglen)
+            return pickle.loads(data)
+        except (OSError, struct.error):
+            return None
+
+    @staticmethod
+    def _recvall(sock, n):
+        data = bytearray()
+        while len(data) < n:
+            try:
+                packet = sock.recv(n - len(data))
+                if not packet: return None
+                data.extend(packet)
+            except OSError:
+                return None
+        return data
 
     @classmethod
     def entry_point(cls):
         parser = argparse.ArgumentParser()
         parser.add_argument("--worker", action="store_true")
         parser.add_argument("--data_path", type=str)
-        # New args for socket connection
         parser.add_argument("--driver_host", type=str)
         parser.add_argument("--driver_port", type=int)
-
         parser.add_argument("--n_components", type=int)
         parser.add_argument("--batch_size", type=int)
         parser.add_argument("--b0", type=float)
