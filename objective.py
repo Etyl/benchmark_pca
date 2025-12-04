@@ -7,7 +7,7 @@ with safe_import_context() as import_ctx:
 class Objective(BaseObjective):
     name = "pca"
 
-    parameters = {"n_components": [1024]}
+    parameters = {"n_components": [500]}
 
     requirements = ["numpy"]
 

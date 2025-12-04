@@ -2,7 +2,6 @@ import numpy as np
 from benchopt import safe_import_context
 from benchopt.stopping_criterion import SufficientProgressCriterion
 
-# Import the new abstract base class
 from benchmark_utils.single_solver import SingleNodeSolver
 
 with safe_import_context() as import_ctx:
