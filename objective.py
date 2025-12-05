@@ -38,10 +38,12 @@ class Objective(BaseObjective):
 
         x_norm = 0
         xc_norm = 0
-        for i in range(self.n):
-            x = X[i, :]
+        batch_size = 1000
+        for i in range(0, self.n, batch_size):
+            i_end = min(i + batch_size, self.n)
+            x = X[i:i_end]
             x_norm += np.sum(x**2)
-            xc_norm += np.sum((x[None, :] @ components)**2)
+            xc_norm += np.sum((x @ components)**2)
 
         unexplained_var = 1 - xc_norm / x_norm
 
