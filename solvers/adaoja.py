@@ -13,7 +13,7 @@ class Solver(SingleNodeSolver):
 
     parameters = {
         "b0": [1e-5],
-        "batch_size": [128],
+        "batch_size": [64],
     }
 
     stopping_criterion = SufficientProgressCriterion(

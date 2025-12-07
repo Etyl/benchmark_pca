@@ -53,11 +53,13 @@ class DistributedMPISolver(BaseSolver):
 
         # Launch Workers (Non-Blocking)
         child_file_path = inspect.getfile(self.__class__)
+        cpus_per_task = os.environ.get("SLURM_CPUS_PER_TASK")
         cmd = [
             "srun",
             "--exclusive",
+            "--mpi=pmi2",
             "-n", str(self.n_workers),
-            "-c", os.environ.get("SLURM_CPUS_PER_TASK", "1"),
+            "-c", cpus_per_task,
             "python", child_file_path,
             "--worker",
             "--data_path", self.X_path,
@@ -74,6 +76,11 @@ class DistributedMPISolver(BaseSolver):
         env = os.environ.copy()
         pythonpath = os.getcwd() + os.pathsep + env.get("PYTHONPATH", "")
         env["PYTHONPATH"] = pythonpath
+        env["OMP_NUM_THREADS"] = cpus_per_task
+        env["MKL_NUM_THREADS"] = cpus_per_task
+        env["OPENBLAS_NUM_THREADS"] = cpus_per_task
+        env["VECLIB_MAXIMUM_THREADS"] = cpus_per_task
+        env["NUMEXPR_NUM_THREADS"] = cpus_per_task
 
         self.worker_process = subprocess.Popen(
             cmd,
@@ -175,11 +182,6 @@ class DistributedMPISolver(BaseSolver):
         comm = MPI.COMM_WORLD
         rank = comm.Get_rank()
         world_size = comm.Get_size()
-
-        if "SLURM_PROCID" in os.environ:
-            rank = int(os.environ["SLURM_PROCID"])
-        if "SLURM_NTASKS" in os.environ:
-            world_size = int(os.environ["SLURM_NTASKS"])
 
         print(
             f"Worker initialized: Rank {rank}/{world_size} "

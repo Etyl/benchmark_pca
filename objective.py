@@ -20,7 +20,7 @@ class Objective(BaseObjective):
         if W is not None:
             self.W = W
 
-    def evaluate_result(self, components):
+    def evaluate_result(self, components, logs=None):
         if (
             components.shape[0] != self.n or
             components.shape[1] != self.n_components
@@ -47,7 +47,15 @@ class Objective(BaseObjective):
 
         unexplained_var = 1 - xc_norm / x_norm
 
-        return dict(value=unexplained_var, ortho_diagnostic=ortho_diagnostic)
+        result = dict(
+            value=unexplained_var,
+            ortho_diagnostic=ortho_diagnostic
+        )
+        if logs is not None:
+            for key, values in logs.items():
+                result[key] = np.sum(values)
+
+        return result
 
     def get_one_result(self):
         return dict(components=np.zeros((self.n, self.n_components)))

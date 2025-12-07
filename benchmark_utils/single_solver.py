@@ -64,9 +64,7 @@ class SingleNodeSolver(BaseSolver):
         cmd = [
             "srun",
             "--exclusive",
-            "--immediate",
-            "-n", "1",
-            "-c", os.environ.get("SLURM_CPUS_PER_TASK", "1"),
+            "-c", os.environ.get("SLURM_CPUS_PER_TASK"),
             "python", script_path,
             "--worker",
             "--X_path", self.X_path,
