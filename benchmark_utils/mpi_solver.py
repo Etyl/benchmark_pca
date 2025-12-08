@@ -57,6 +57,8 @@ class DistributedMPISolver(BaseSolver):
         cmd = [
             "srun",
             "--exclusive",
+            "--cpu-bind=cores",
+            "--ntasks-per-socket=1",
             "--mpi=pmi2",
             "-n", str(self.n_workers),
             "-c", cpus_per_task,
@@ -66,10 +68,10 @@ class DistributedMPISolver(BaseSolver):
             "--driver_host", str(driver_host),
             "--driver_port", str(driver_port),
             "--n_components", str(self.n_components),
-            "--batch_size", str(self.batch_size),
-            "--b0", str(self.b0),
-            "--seed", str(42)
         ]
+        for param in self.parameters:
+            cmd.append(f"--{param}")
+            cmd.append(str(getattr(self, param)))
 
         print(f"Driver: Launching persistent MPI cluster on {child_file_path}")
 
@@ -289,9 +291,10 @@ class DistributedMPISolver(BaseSolver):
         parser.add_argument("--driver_host", type=str)
         parser.add_argument("--driver_port", type=int)
         parser.add_argument("--n_components", type=int)
-        parser.add_argument("--batch_size", type=int)
-        parser.add_argument("--b0", type=float)
-        parser.add_argument("--seed", type=int)
+
+        for param, values in cls.parameters.items():
+            param_type = type(values[0]) if values else str
+            parser.add_argument(f"--{param}", type=param_type)
 
         args, _ = parser.parse_known_args()
 

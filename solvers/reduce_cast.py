@@ -13,7 +13,7 @@ with safe_import_context() as import_ctx:
 
 
 class Solver(DistributedMPISolver):
-    name = "all-reduce"
+    name = "reduce-cast"
 
     parameters = {
         "n_workers": [1, 4, 16],
@@ -34,7 +34,6 @@ class Solver(DistributedMPISolver):
         Initialize the worker environment, clear logs, and load data.
         Returns the local data tensor (X_local).
         """
-
         # Load Data Slice
         X_mmap = open_memmap(args.data_path, mode='c')
         n_samples, n_features = X_mmap.shape
@@ -73,31 +72,38 @@ class Solver(DistributedMPISolver):
             X_batch = X_local[indices]
             logs['sample_time'].append(time.perf_counter() - t_start)
 
-            # Local Computation
+            # Local Computation (Gradient)
             t_start = time.perf_counter()
             np.matmul(X_batch.T, X_batch @ W, out=G_local)
             logs['compute_time'].append(time.perf_counter() - t_start)
 
-            # Communication
+            # Gather gradients to Rank 0
             t_start = time.perf_counter()
-            comm.Allreduce(G_local, G_global, op=MPI.SUM)
-            G_global /= args.batch_size
+            comm.Reduce(G_local, G_global, op=MPI.SUM, root=0)
             logs['comm_time'].append(time.perf_counter() - t_start)
 
-            # Global Update
-            t_start = time.perf_counter()
-            b = np.sqrt(b**2 + np.linalg.vector_norm(G_global, axis=0) ** 2)
-            W += G_global / b[None, :]
-            logs['update_time'].append(time.perf_counter() - t_start)
+            # 4. Global Update & Orthogonalization (Rank 0 only)
+            if rank == 0:
+                # Update
+                t_start = time.perf_counter()
+                G_global /= args.batch_size
+                b = np.sqrt(b**2 + np.linalg.vector_norm(G_global, axis=0)**2)
+                W += G_global / b[None, :]
+                logs['update_time'].append(time.perf_counter() - t_start)
 
-            # Orthogonalization
+                # Orthogonalization (QR)
+                t_start = time.perf_counter()
+                if (k + 1) % args.project_every == 0 or k == n_iter - 1:
+                    W, _ = np.linalg.qr(W, mode='reduced')
+                    signs = np.sign(W[0, :])
+                    signs[signs == 0] = 1.0
+                    W *= signs[None, :]
+                logs['project_time'].append(time.perf_counter() - t_start)
+
+            # Broadcast new W to all workers
             t_start = time.perf_counter()
-            if (k + 1) % args.project_every == 0 or k == n_iter - 1:
-                W, _ = np.linalg.qr(W, mode='reduced')
-                signs = np.sign(W[0, :])
-                signs[signs == 0] = 1.0
-                W *= signs[None, :]
-            logs['project_time'].append(time.perf_counter() - t_start)
+            comm.Bcast(W, root=0)
+            logs['comm_time'][-1] += (time.perf_counter() - t_start)
 
         return W, dict(logs)
 

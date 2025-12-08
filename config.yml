@@ -1,10 +1,9 @@
 solver:
-  - all-reduce
+  - reduce-cast
   - adaoja
 dataset:
   - simulated
 
-n_repetitions: 3
-no-cache: true
+n_repetitions: 1
 # max-runs: 200
-timeout: 300
+timeout: 90

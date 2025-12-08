@@ -64,12 +64,14 @@ class SingleNodeSolver(BaseSolver):
         cmd = [
             "srun",
             "--exclusive",
+            "--cpu-bind=cores",
+            "--ntasks-per-socket=1",
+            "-n", "1",
             "-c", os.environ.get("SLURM_CPUS_PER_TASK"),
             "python", script_path,
             "--worker",
             "--X_path", self.X_path,
             "--n_components", str(self.n_components),
-            # Pass connection details
             "--driver_host", driver_host,
             "--driver_port", str(driver_port)
         ]
