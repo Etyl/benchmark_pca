@@ -1,4 +1,5 @@
 solver:
+  - dis-pca
   - reduce-cast
   - adaoja
 dataset:
