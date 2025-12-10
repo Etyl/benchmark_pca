@@ -55,13 +55,8 @@ class DistributedMPISolver(BaseSolver):
         child_file_path = inspect.getfile(self.__class__)
         cpus_per_task = os.environ.get("SLURM_CPUS_PER_TASK")
         cmd = [
-            "srun",
-            "--exclusive",
-            "--cpu-bind=cores",
-            "--ntasks-per-socket=1",
-            "--mpi=pmi2",
+            "mpiexec",
             "-n", str(self.n_workers),
-            "-c", cpus_per_task,
             "python", child_file_path,
             "--worker",
             "--data_path", self.X_path,
