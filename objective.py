@@ -13,12 +13,10 @@ class Objective(BaseObjective):
 
     min_benchopt_version = "1.5"  # To check
 
-    def set_data(self, n, d, X_path, W=None):
+    def set_data(self, n, d, X_path):
         self.n = n
         self.d = d
         self.X_path = X_path
-        if W is not None:
-            self.W = W
 
     def evaluate_result(self, components, logs=None):
         if (

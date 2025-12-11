@@ -1,10 +1,12 @@
 solver:
+  - dask
   - dis-pca
   - reduce-cast
   - adaoja
 dataset:
   - simulated
 
+no-cache: true
 n_repetitions: 1
 # max-runs: 200
-timeout: 90
+timeout: 1000

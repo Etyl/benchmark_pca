@@ -19,7 +19,7 @@ class Solver(DistributedMPISolver):
         "n_workers": [1, 4, 16],
         "batch_size": [64],
         "b0": [1e-5],
-        "project_every": [3],
+        "project_every": [1],
     }
 
     requirements = ["numpy", "mpi4py"]

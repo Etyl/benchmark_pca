@@ -38,18 +38,14 @@ class Solver(DistributedMPISolver):
         start = rank * chunk_size
         end = start + chunk_size if rank != world_size - 1 else n_samples
 
-        X_local = X_mmap[start:end]
+        X_local = np.array(X_mmap[start:end])
 
-        # 2. Compute Global Mean (One-time setup cost)
         local_sum = np.sum(X_local, axis=0)
         global_sum = np.zeros_like(local_sum)
 
-        # Sum all local sums to the root, then broadcast result
         comm.Allreduce(local_sum, global_sum, op=MPI.SUM)
         global_mean = global_sum / n_samples
 
-        # 3. Center Local Data in-memory
-        # (This avoids re-centering inside the timing loop)
         X_local_centered = X_local - global_mean
 
         return X_local_centered

@@ -42,7 +42,7 @@ class Solver(DistributedMPISolver):
         start = rank * chunk_size
         end = start + chunk_size if rank != world_size - 1 else n_samples
 
-        X_local = X_mmap[start:end]
+        X_local = np.array(X_mmap[start:end])
 
         return X_local
 
