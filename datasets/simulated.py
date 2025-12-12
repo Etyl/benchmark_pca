@@ -34,9 +34,9 @@ class Dataset(BaseDataset):
     name = "simulated"
 
     parameters = {
-        "n": [10000],
-        "d": [30000],
-        "rank": [1000],
+        "n": [1000],
+        "d": [3000],
+        "rank": [200],
         "decay_function": ["sqrt"],
     }
 

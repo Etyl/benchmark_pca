@@ -21,11 +21,21 @@ class Solver(SingleNodeSolver):
     )
 
     @classmethod
-    def solve(cls, X, args):
+    def init_worker(cls, args):
+        """
+        Initialize worker by loading data from the provided path.
+        """
+        X = np.load(args.X_path)
+        args.X = X
+        return args
+
+    @classmethod
+    def solve(cls, args):
         """
         Implementation of the AdaOja optimization logic.
         Called by the worker when a RUN command is received.
         """
+        X = args.X
         n, d = X.shape
         k = args.n_components
 

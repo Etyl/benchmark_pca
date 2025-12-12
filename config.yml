@@ -4,9 +4,10 @@ solver:
   - reduce-cast
   - adaoja
 dataset:
+  - mnist
   - simulated
 
 no-cache: true
 n_repetitions: 1
 # max-runs: 200
-timeout: 1000
+timeout: 90

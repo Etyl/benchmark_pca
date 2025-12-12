@@ -7,7 +7,7 @@
 #SBATCH --partition=parietal,normal
 #SBATCH --cpus-per-task=2
 #SBATCH --time=04:00:00
-#SBATCH --mem=4G
+#SBATCH --mem-per-cpu=1G
 #SBATCH --error error_%A_%a.out
 #
 

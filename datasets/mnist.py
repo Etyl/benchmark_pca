@@ -2,6 +2,7 @@ import os
 import urllib.request
 import gzip
 import numpy as np
+from numpy.lib.format import open_memmap
 
 from benchmark_utils.data import DiskDataset
 
@@ -76,5 +77,11 @@ class Dataset(DiskDataset):
         np.save(os.path.join(data_dir, "data.npy"), all_images)
 
     def load(self, data_dir):
-        X = np.load(os.path.join(data_dir, "data.npy"))
-        return dict(X=X)
+        data_path = os.path.join(data_dir, "data.npy")
+        X_mmap = open_memmap(data_path, mode='c')
+        d, n = X_mmap.shape
+        return dict(
+            X_path=data_path,
+            n=n,
+            d=d
+        )

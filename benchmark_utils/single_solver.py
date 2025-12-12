@@ -8,7 +8,6 @@ import socket
 import pickle
 import struct
 import atexit
-import numpy as np
 from benchopt import BaseSolver
 from benchmark_utils import ACTIVE_SOLVERS
 
@@ -180,7 +179,7 @@ class SingleNodeSolver(BaseSolver):
             print(f"Error: Data file {args.X_path} not found.")
             sys.exit(1)
 
-        X = np.load(args.X_path)
+        args = cls.init_worker(args)
 
         # 2. Connect to Driver
         try:
@@ -207,7 +206,7 @@ class SingleNodeSolver(BaseSolver):
 
                 try:
                     # Run the concrete solver logic
-                    components = cls.solve(X, args)
+                    components = cls.solve(args)
 
                     # Send back results
                     response = {"status": "DONE", "components": components}

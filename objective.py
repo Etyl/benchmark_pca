@@ -7,7 +7,7 @@ with safe_import_context() as import_ctx:
 class Objective(BaseObjective):
     name = "pca"
 
-    parameters = {"n_components": [500]}
+    parameters = {"n_components": [100]}
 
     requirements = ["numpy"]
 
@@ -19,6 +19,8 @@ class Objective(BaseObjective):
         self.X_path = X_path
 
     def evaluate_result(self, components, logs=None):
+        X = np.load(self.X_path, mmap_mode="r")
+
         if (
             components.shape[0] != self.n or
             components.shape[1] != self.n_components
@@ -31,8 +33,6 @@ class Objective(BaseObjective):
         ortho_diagnostic = np.max(
             np.abs(components.T @ components - np.eye(self.n_components))
         ).flatten()
-
-        X = np.load(self.X_path, mmap_mode="r")
 
         x_norm = 0
         xc_norm = 0
